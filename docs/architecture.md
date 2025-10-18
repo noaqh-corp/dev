@@ -101,7 +101,7 @@ Domainごとに分け、そのDomain内でドメイン的振る舞いを実現�
 * ルール
 
   * 単純な読み取りや検索のみはRepositoryを使用する。
-  * 命名は意味的にわかりやすく、ユースケースを表すようにする。get-user-profileなどの実装に寄りすぎた命名は避ける。
+  * 命名は意味的にわかりやすく、ユースケースを表すようにする。get-user-profileなどの実装に寄りすぎた命名は避ける。list-taskなど、内部でRepositoryを呼び出すだけのようなusecaseは絶対作成しない。
     
     Good:
         features/ticket/list-available-tickets/handler.ts
@@ -224,7 +224,7 @@ port の実体を置きます。DBなら Prisma、外部サービスなら各SDK
   * update(id: string, data: Partial<Omit<Item, 'id'>>): Promise<Item>
   * delete(id: string): Promise<void>
 
-  // 型定義（shared/types/types.tsで定義）
+  // 型定義（shared/types/types.tsではなく、Repository内部で定義する）
   interface SearchParams {
     offset?: number
     limit?: number
@@ -272,7 +272,7 @@ port の実体を置きます。DBなら Prisma、外部サービスなら各SDK
   * Service内部で生成型を使用する場合は、exportしない。
   * DiscordServiceの例
   ```
-  // shared/types/types.ts
+  // shared/types/types.tsではなく、Service内部で定義する
   export type Channel = {
     id: string
     name: string

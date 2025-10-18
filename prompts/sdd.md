@@ -1,5 +1,5 @@
 以下の流れで仕様書駆動開発を行います。実装が完了し、テストも通ったら、spec/spec.mdを更新します。spec/spec.mdが存在しなければ作成しなさい。このファイルはプロジェクト全体の仕様であり、事実上の長期記憶です。
-1. フェーズ1: ユーザーから要求を受け取り、spec/{feature_number}-{feature_name}/plan.mdをplan_templateを使って作成します。
+1. フェーズ1: ユーザーから要求を受け取り、spec/{feature_number}-{feature_name}/plan.mdをplan_templateを使って作成します。このときにアーキテクチャ (https://github.com/noaqh-corp/dev/blob/main/docs/architecture.md) に沿うように作成してください。
 2. フェーズ2: フェーズ1で作成したspec/{feature_number}-{feature_name}/plan.mdをもとに実装を行い、spec/{feature_number}-{feature_name}/implementation_report_template.mdをimplementation_report_templateを使ってレポートを作成します。
 3. フェーズ3: https://raw.githubusercontent.com/noaqh-corp/dev/refs/heads/main/prompts/code-style-review.md を読み**今回の変更点のみ**コードレビューを行い、spec/{feature_number}-{feature_name}/code-style-review.mdを作成します。テストが通らなくなった場合は実装を修正します。再度フェーズ3を行い、コードのレビューに問題がないかつ、テストが通ったら実装は完了です。
 4. フェーズ4: プルリクエストを作成するための下書きをspec/{feature_number}-{feature_name}/pr_draft.mdに作成します。
@@ -147,6 +147,8 @@
   ここではTDDを行い、テストを最初に書き、テストを通すための実装を書き、テストを通したらリファクタリングを行うことを行います。実装セットに分け、実装セット内ではTDDを行います。実装セットはモジュールごとに分け、順に実装を行えばすべての機能が実装できるようにしてください。
   各handlerなど実装は最上部にそのファイルに期待される動きを記載する必要があります。この内容は`// TASK: [実装内容]`というコメントで記載する必要があります。
   各実装セットはエントリーポイントがどのような仕様なのかも明記する。エントリーポイントは一つであることが望ましいが複数も可能。
+  DTOは作らない。引数と返り値は明確に型を記載する。
+  機能の実現に必要かつ、新規作成は編集が必要なcommand/queryはすべて明記する。
 -->
 #### [実装セット名1]
 - 対象ファイル: [対象ファイル(複数可能)]
@@ -156,8 +158,8 @@
       - 実装前状態: `[実装前状態]`
       - 実装後状態: `[実装後状態]`
       - 実装内容: `[実装内容]`
-      - 引数: `[引数]`
-      - 返り値: `[返り値]`
+      - 引数: `[引数]` ex: `{ userId: string }` <!-- ~~Inputなどの型を作らず、明確に引数の型を記載する -->
+      - 返り値: `[返り値]` ex: `{ userId: string }` <!-- ~~Outputなどの型を作らず、明確に返り値の型を記載する -->
 - 対象テストファイル: [対象テストファイル(複数可能)]
 - 実装内容: [実装内容]
 - 手順:
