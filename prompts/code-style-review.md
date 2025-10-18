@@ -174,6 +174,37 @@ ES6で導入されたデフォルトパラメータは、関数に値が渡さ�
 
 ---
 
+### **型 (Types)**
+
+#### [types-1] 無意味な型を作らない
+
+**Bad:**
+```typescript
+import type { SendDocumentInput } from "$lib/server/types/sendDocument"
+
+export async function sendDocument(input: SendDocumentInput) {
+  const repo = Container.getDraftDocumentRepository()
+  const draft = await repo.findDraft(input.draftId)
+  if (!draft) throw new Error("Draft not found")
+  return repo.markAsSent(draft, input)
+}
+```
+
+**Good:**
+```typescript
+export async function sendDocument(draftId: string, sentAt: Date) {
+  const repo = Container.getDraftDocumentRepository()
+  const draft = await repo.findDraft(draftId)
+  if (!draft) throw new Error("Draft not found")
+  return repo.markAsSent(draft, { draftId, sentAt })
+}
+```
+
+**なぜそうするかの理由:**
+関数の引数をまとめるためだけに新しい型を定義するのは、不要な抽象化です。特に、その型が1箇所でしか使われない場合、型定義を探す手間が増え、コードの見通しが悪くなります。引数が少数（2-3個程度）であれば、直接引数として受け取る方がシンプルで理解しやすいコードになります。型は、複数箇所で共有される概念や、ドメインモデルとして意味のあるものに対してのみ定義すべきです。単なる引数のグルーピングのための型は、コードベースを複雑にするだけで価値を生みません。
+
+---
+
 ### **関数 (Functions)**
 
 #### [functions-1] 関数の引数は理想的には2つ以下にする

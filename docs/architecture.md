@@ -1,53 +1,359 @@
-## 0\. 目的と背景
+# アーキテクチャ
+version: 1.0.0
+date: 2025-10-18
 
-このドキュメントは、SvelteKit \+ TypeScript (strict) を用いたバニラプロジェクトにおいて、アーキテクチャの意図・ディレクトリ構造・開発プロセス・運用フローを共有します。
+変更履歴:
+- 2025-10-18: 初版
+
+## 1. 目的と背景
+
+このドキュメントは、TypeScript (strict) を用いたバニラプロジェクトにおいて、アーキテクチャの意図・ディレクトリ構造・開発プロセス・運用フローを共有します。
+ドメイン的振る舞い、外部サービスとの連携など複雑な実装をテスト容易性を保ちながら実装するためのアーキテクチャです。おもにバックエンドでの利用を想定しています。
+
+### 1-1 既存のアーキテクチャの課題感
+ドメイン駆動開発や、クリーンアーキテクチャは弊社が関わるプロジェクトの特徴からするとTooMuchArchitectureである。弊社は0→1開発が非常に多く、ドメイン駆動設計は設計工程に時間がかかりすぎ、ファイル数も非常に増えてしまうためオーバーエンジニアリングである。
+
+### 1-2 このアーキテクチャの意図
+このアーキテクチャでは、command/query/flowにCQRSの考え方でドメイン的振る舞いを内包することがポイントである。これにより、モジュールに対応したクラスにドメイン的振る舞いを内包することなくユースケースを達成でき、後述するAdapter層でモックを用いることで特殊な状態を再現したテストも容易に行える。
+また、ユースケースに合わせてドメイン的振るまいをディレクトリ内に閉じこめることで、AIを活用した開発において最小限のコンテキストで開発を行えるようにすることができる。
+対応するテストも同じディレクトリ内に配置し、独立したモジュールとして管理することで、テストコードも最小限のコンテキストで管理できる。
+
+## 2. ドメイン振る舞いの設計コンセプト
+ビジネスの決まりごとや判断を、機能ごとに小さく分けて書きます。
+「読むだけの処理」と「状態を変える処理」を分ける考え方 → コマンド・クエリの分離（CQRS）を採用します。外部サービス(外部APIやDB)への出入りは、直接触らず「port」で受けます。このport → ポート（Port）、実体の配線 → アダプター（Adapter）と呼びます。
+
+* ユースケース単位で最小化する：command/は状態変更、query/は参照だけ。混ぜない。
+* 外部とのやりとりは port 経由に限定する。テストでは mock を差し替えて再現性を高める。
+* 型は ZenStack 生成物を基準にする。入力は Zod で検証し、出力は型で保証する。
+* 複数ユースケースをまたぐ順序や再試行は flow に寄せ、ドメインの判断は feature に置く。
+
+### 2-1. featuresディレクトリ
+Domainごとに分け、そのDomain内でドメイン的振る舞いを実現する。
+
+* 構成の例
+
+  ```
+  features/<domain>/
+    command/<usecase>/handler.ts     // 状態を変える(後述)
+    command/<usecase>/handler.test.ts     // テスト(後述)
+    query/<usecase>/handler.ts       // 読み取りだけ(後述)
+    query/<usecase>/handler.test.ts       // テスト(後述)
+    utils.ts     // ユーティリティ関数
+    types.ts     // 型定義
+  ```
+* ルール
+
+  * types.tsには、そのDomain内で使用する型を定義する。もし、他Domainでも使用する型があれば、`shared/types`に定義する。
+  * Prisma生成型、Zod生成型はtypes.ts内部でのみ利用可能。生成型はexportしない。
+  * types.tsからexportする型は、Prisma生成型やZod生成型を元に作成した手書き型のみ。
+  * command/query内で型が必要な場合は、types.tsに定義してそこからimportする。
+  * DB・外部APIは触らない。`shared/port` のインターフェースを使い、実体はコンテナから受け取る。
+  * 例外と業務エラーを分ける。接続失敗などは例外で落とし、仕様上の不一致は戻り値や型で表す。
+  * 取引のまとまり（トランザクション）は command 側で開始・終了する。query では持たない。
+  * utils.tsには、そのDomain内でのみ使用するかつ、**複数のユースケースで共通で使用する関数**を定義する。
+* テスト
+
+  * 基本は同階層でユースケース単位のテストを置く。
+
+#### 2-1-1. commandディレクトリ
+変更を行うユースケースを実装する。
+
+* 構成の例
+
+  ```
+  features/<domain>/
+    command/<usecase>/handler.ts     // 状態を変える
+    command/<usecase>/handler.test.ts     // テスト
+    [command/<usecase>/<name>.ts]     // hander.tsが長大になった場合に適切に分割する
+    
+  ```
+
+* ルール
+
+  * 変更を行うユースケースは command 側で行う。
+  * 特にドメイン的振る舞いが無く、保存のみを行う場合はusecaseは作成しない。ドメイン的に重複チェックや、バリデーションを行う場合はusecaseを作成する。
+  * 命名は意味的にわかりやすく、ユースケースを表すようにする。update-userなどの実装に寄りすぎた命名は避ける。
+    
+    Good:
+        features/notification/send-push-notification/handler.ts
+        features/product/purchase-item/handler.ts
+    Bad:
+        features/user/update-user/handler.ts
+        features/contact/create-contact/handler.ts
+  * hander.tsが長大になった場合に適切に分割する。<name>.tsを作成する。
+
+  * 基本的に返り値はvoidであるが、性質上返り値が必要な場合は、features/\<domain\>/types.tsで型定義を行う。
+  * 基本的に型は新規作成しない。features/\<domain\>/types.ts、shared/typesに定義されている型を使用する。
+  * Prisma生成型、Zod生成型は使用しない。必要な型はfeatures/\<domain\>/types.tsまたはshared/typesで手書き型として定義する。
+  * handler.ts内で型定義は行わない。必ず types.ts に集約する。
+
+#### 2-1-2. queryディレクトリ
+
+* 構成の例
+
+  ```
+  features/<domain>/
+    query/<usecase>/handler.ts       // 読み取りだけ
+    query/<usecase>/handler.test.ts       // テスト
+    [query/<usecase>/<name>.ts]     // hander.tsが長大になった場合に適切に分割する
+  ```
+
+* ルール
+
+  * 単純な読み取りや検索のみはRepositoryを使用する。
+  * 命名は意味的にわかりやすく、ユースケースを表すようにする。get-user-profileなどの実装に寄りすぎた命名は避ける。
+    
+    Good:
+        features/ticket/list-available-tickets/handler.ts
+        features/product/list-purchased-products/handler.ts
+    Bad:
+        features/user/get-user-profile/handler.ts
+        features/order/get-order-detail/handler.ts
+        features/ticket/list-tickets/handler.ts
+
+  * hander.tsが長大になった場合に適切に分割する。<name>.tsを作成する。
+  * 基本的に型は新規作成しない。features/\<domain\>/types.ts、shared/typesに定義されている型を使用する。
+  * Prisma生成型、Zod生成型は使用しない。必要な型はfeatures/\<domain\>/types.tsまたはshared/typesで手書き型として定義する。
+  * handler.ts内で型定義は行わない。必ず types.ts に集約する。
+
+### 2-2. flowsディレクトリ
+
+複数のユースケースを「どの順番で」「いつ」「失敗したらどうするか」をまとめます。
+手順をまとめて管理すること → オーケストレーションと呼びます。
+
+* 役割
+
+  * スケジューラ起動（cron）やWebhookの入口から、必要な command/query を順に呼ぶ。
+  * リトライ・冪等性（同じ入力で何度呼んでも重複しない）の担保、監視ログの記録。
+  * ドメインの判断は書かない。判断は常に features/ に置く。
+* 構成の例
+
+  ```
+  flows/<flow-name>/
+    handler.ts      // メイン手順
+    handler.test.ts // テスト
+  ```
+* テスト
+
+  * 同階層でユースケース単位のテストを置く。
 
 ---
 
-## 1\. 設計の意図
+## 3. それ以外の設計コンセプト
 
-## 2\. 設計コンセプト
+上記以外の横断ルールをまとめます。
 
-1. 最小限のレイヤー: `command/`・`query/` を基本単位とする。  
-2. ZenStack ファースト: 型・スキーマは ZenStack 生成物を中心に扱い、手書きの型は多重利用ケースのみ。  
-3. TDDによる漸進実装: ユースケース単位で Red-Green-Refactor を回し、早期に仕様をテスト化。  
-4. 観測とデバッグを組み込み: Sentry・デバッグログイン・デタッチ起動など、運用上必須の仕組みを初期から導入。  
-5. モックは例外手段: 実装・テストは基本的に本番と同じコードパスを使用し、Mock は意図が明確な場合に限定。
+* 依存の向き：上位（routes/flows/features）→ port → adapter。実装詳細（Prismaや外部SDK）は下位に閉じ込める。
+* 入力境界の検証：外部入力は必ず Zod で検証してからドメインに渡す。
+* 設定の初期化：外部SDKやSentryなどは providers/ で初期化し、コンテナから渡す。
+* 例外扱い：通信・権限・タイムアウトはログを残し再試行方針を決める。業務エラーは戻り値で表現してUIへ伝える。
+* 管理画面の例外：`/routes/admin/**` のみ Prisma 直接利用を許可（運用効率を優先）。それ以外は port 経由。
+
+### 3-1. shared/portディレクトリ
+
+外部とやりとりするための「インターフェース」だけを置きます。
+
+* 設計方針
+
+  * 機能名＋役割で名付ける（例：`UserRepository`, `DiscordService`）。
+  * 引数・戻り値は「必要最小限の形」にする（Prismaの生型は漏らさない）。
+  * 失敗は型で表すか、投げる例外の型を限定する。どちらにするかをポートごとに決めて統一する。
+  * 変更が多いのはアダプター側。port はできるだけ安定させる。
+
+### 3-2. shared/typesディレクトリ
+
+手書き型を置く場所です。ここに置くのは「複数Domain・複数箇所で繰り返し使う型」だけにします。
+
+* 構成の例
+
+  ```
+  shared/types/
+    types.ts     // 型定義
+    errors.ts     // エラー型
+  ```
+
+* ガイド
+
+  * Prisma生成型、Zod生成型はtypes.ts、Repository内部でのみ利用可能。生成型はexportしない。
+  * types.tsからexportする型は、Prisma生成型やZod生成型を元に作成した手書き型のみ。
+  * 単一Domain内でのみ使用する型は、features/\<domain\>/types.tsに定義する。
+  * 名前は役割がわかるように（例：`SendDocumentInput`, `ReminderResult`）。
+  * 実行時検証が要る型は Zod スキーマも同時に用意する。
+  * UI専用など局所的な型は、その場に閉じ込める（ここへは出さない）。
+
+### 3-3. shared/adapterディレクトリ
+
+port の実体を置きます。DBなら Prisma、外部サービスなら各SDKを使います。
+
+* 構成
+
+  ```
+  adapter/
+    repository/      // DB 実装（Prisma）
+      mock/          // テスト用モック
+    service/         // 外部API実装（SDK）
+      mock/
+  ```
+* ルール
+
+  * ここから上位（features/flows）へは port で返す。実装詳細は漏らさない。
+  * モックはテスト専用。通常実行時は本番実装を使う。
+  * 接続設定や資格情報は providers/ で初期化し、コンテナ経由で注入する（交換可能性を保つ）。
+  * 例外は発生源で文脈を付けて投げ直す（再試行可否・原因区分を付ける）。
+
+#### 3-3-1. repository
+
+* 構成の例
+
+  ```
+  adapter/
+    repository/
+      mock/
+  ```
+
+* ルール
+  * モックはテスト専用。通常実行時は本番実装を使う。
+  * Prisma生成型、Zod生成型はRepository内部でのみ利用可能。生成型はexportしない。
+  * Repository外部で必要な型は、shared/types/types.tsで手書き型として定義する。
+  *　一般的な以下のメソッドを定義する。
+
+  ```
+  * get(id: string): Promise<Item>
+  * search(params: SearchParams): Promise<SearchResult<Item>>
+  * create(data: Partial<Item>): Promise<Item>
+  * update(id: string, data: Partial<Omit<Item, 'id'>>): Promise<Item>
+  * delete(id: string): Promise<void>
+
+  // 型定義（shared/types/types.tsで定義）
+  interface SearchParams {
+    offset?: number
+    limit?: number
+    sort?: {
+      field: string
+      order: 'asc' | 'desc'
+    }
+    filters?: Filter[]
+    search?: {
+      fields: string[]
+      query: string
+    }
+  }
+
+  interface Filter {
+    field: string
+    operator: 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'startsWith' | 'endsWith' | 'in' | 'notIn'
+    value: string | number | boolean | string[] | number[]
+  }
+
+  interface SearchResult<T> {
+    items: T[]
+    total: number
+    page: number
+    pageSize: number
+  }
+  ```
+
+
+#### 3-3-2. service
+
+* 構成の例
+
+  ```
+  adapter/
+    service/
+      mock/
+  ```
+
+* ルール
+
+  * 外部サービス連携で利用するメソッドを定義する
+  * 内部でRepositoryには依存しない。
+  * ライブラリからimportした型はそのまま使用せず、shared/types/types.tsで手書き型として定義する。
+  * Service内部で生成型を使用する場合は、exportしない。
+  * DiscordServiceの例
+  ```
+  // shared/types/types.ts
+  export type Channel = {
+    id: string
+    name: string
+    description: string
+  }
+  export type SendMessageResult = {
+    status: 'success' | 'error'
+    messageId: string
+  }
+
+  // shared/port/DiscordService.ts
+  export interface DiscordService {
+    sendMessage(channelId: string, message: string): Promise<SendMessageResult>
+    listChannels(): Promise<Channel[]>
+  }
+  ```
 
 ---
 
 ## 3\. ディレクトリ構造
 
+
 ```
 .
-├── src/
-│   ├── lib/
-│   │   ├── generated/            # ZenStack 自動生成（編集不可）
-│   │   ├── hooks/                # クライアント共通フック
-│   │   ├── util/                 # フロントユーティリティ
-│   │   └── server/
-│   │       ├── adapter/
-│   │       │   ├── repository/   # Prisma 実装と mock/
-│   │       │   └── service/      # 外部サービス実装と mock/
-│   │       ├── features/         # ドメインユースケース (command/query 中心)
-│   │       ├── flows/            # 複数ユースケースのオーケストレーション
-│   │       ├── providers/        # SDK・Sentry などの初期化
-│   │       ├── routes/           # 共有サーバーアクション
-│   │       ├── shared/           # DI コンテナ・port・共通定数
-│   │       ├── entrypoint/       # cron.ts / cli.ts 等
-│   │       ├── test/             # サーバーサイドテスト（flow コメント必須）
-│   │       ├── types/            # 複数箇所で使う手書き型
-│   │       └── util(s)/          # サーバーユーティリティ（logger 等）
-│   └── routes/
-│       ├── admin/                # 管理 UI (Prisma 直接利用を許可)
-│       ├── (public)/, contact/, ...
-│       ├── api/                  # Webhook・外部 API
-│       ├── debug/                # デバッグルート
-│       └── +layout/+page.*       # SvelteKit 標準構成
-├── scripts/                      # seed や運用スクリプト
-├── prisma/                       # ZenStack が生成する schema.prisma 等
-├── dev.log / cron.log            # ログ出力先
-└── 設計.md                       # 本ドキュメント
+├── [basedir]/
+│   ├── adapter/
+│   │   ├── repository/           # ORM実装
+│   │   │   ├── UserRepository.ts
+│   │   │   ├── ProductRepository.ts
+│   │   │   └── mock/
+│   │   │       ├── UserRepository.ts
+│   │   │       └── ProductRepository.ts
+│   │   └── service/              # 外部サービス実装
+│   │       ├── DiscordService.ts
+│   │       ├── LineWorksService.ts
+│   │       └── mock/
+│   │           ├── DiscordService.ts
+│   │           └── LineWorksService.ts
+│   ├── features/                 # ドメインユースケース (command/query 中心)
+│   │   ├── notification/
+│   │   │   ├── command/
+│   │   │   │   └── send-push-notification/
+│   │   │   │       ├── handler.ts
+│   │   │   │       └── handler.test.ts
+│   │   │   ├── query/
+│   │   │   │   └── list-available-notifications/
+│   │   │   │       ├── handler.ts
+│   │   │   │       └── handler.test.ts
+│   │   │   ├── utils.ts
+│   │   │   └── types.ts
+│   │   └── product/
+│   │       ├── command/
+│   │       │   └── purchase-item/
+│   │       │       ├── handler.ts
+│   │       │       └── handler.test.ts
+│   │       └── query/
+│   │           └── list-purchased-products/
+│   │               ├── handler.ts
+│   │               └── handler.test.ts
+│   ├── flows/                    # 複数ユースケースのオーケストレーション
+│   │   ├── reminder/
+│   │   │   ├── handler.ts
+│   │   │   └── test.ts
+│   │   └── document-package-process/
+│   │       ├── handler.ts
+│   │       └── test.ts
+│   ├── shared/                   # DI コンテナ・port・共通定数
+│   │   ├── port/                 # 抽象インターフェース
+│   │   │   ├── UserRepository.ts
+│   │   │   ├── ProductRepository.ts
+│   │   │   ├── DiscordService.ts
+│   │   │   └── LineWorksService.ts
+│   │   ├── types/                # 複数箇所で使う手書き型
+│   │   │   ├── types.ts
+│   │   │   └── errors.ts
+│   │   └── container.ts          # DIコンテナ
+│   ├── entrypoint/               # cron.ts / cli.ts 等
+│   │   ├── cron.ts
+│   │   └── cli.ts
+│   └── util/                  # サーバーユーティリティ（logger 等）
+│       └── logger.ts
 ```
 
 **主要ディレクトリの役割**
@@ -56,11 +362,9 @@
 | :---- | :---- | :---- |
 | `features/<Domain>` | ユースケース単位の command/query | まずここから設計を始める。`core/` は作らない。 |
 | `flows/<Flow>` | 複数ユースケースの組み合わせ | 状態遷移や通知など横断処理を集約。 |
-| `routes/` (server) | 共有アクション | 複数ページで同一ロジックを使うときに抽出。 |
 | `shared/port` | 抽象インターフェース | Adapter 実装の契約を定義。 |
+| `shared/types` | 手書きの共有型 | ZenStack で賄えない複数箇所共有型のみ配置。 |
 | `adapter/*/mock/` | テスト用 Mock | 原則テスト専用。常用しない。 |
-| `types/` | 手書きの共有型 | ZenStack で賄えない複数箇所共有型のみ配置。 |
-| `generated/` | ZenStack 生成物 | 直接編集禁止。Zod スキーマや hook が存在。 |
 
 ---
 
@@ -68,96 +372,40 @@
 
 | レイヤ | 主な配置 | 依存可能 | 制約 |
 | :---- | :---- | :---- | :---- |
-| Routes (`src/routes/**`) | `+page.server.ts`, `+server.ts` | features, flows, shared routes, adapter (Repository) | Prisma 直呼びは `src/routes/admin/**` のみ許可。他は Repository/Feature 経由。 |
-| Shared Routes | `src/lib/server/routes/**` | features, adapter, shared | ルートから呼び出される共有ハンドラ。 |
-| Flows | `src/lib/server/flows/**` | features, adapter, shared | 2 つ以上のユースケースを束ねる場合のみ。 |
-| Features | `src/lib/server/features/**` | adapter, shared | command/query を中心に実装。設計を先に書き下す。 |
-| Adapter | `src/lib/server/adapter/**` | shared, providers | DB・外部サービス。Mock は同階層に配置。 |
-| Providers | `src/lib/server/providers/**` | shared | Sentry や API クライアントの初期化。 |
-| Shared | `src/lib/server/shared/**` | — | DI コンテナ・port・共通ロジック。 |
-| Generated | `src/lib/generated/**` | 全レイヤ | ZenStack 自動生成。編集禁止。 |
-
-- ルート配下で Prisma を利用したい場合は、まず admin ルートかを確認。一般ルートは Repository を経由して副作用を局所化する。  
-- 共有したいロジックは `types/` と `routes/` / `shared/` を利用し、コピー＆ペーストを避ける。
+| Flows | `flows/**` | features, adapter, shared | 2 つ以上のユースケースを束ねる場合のみ。 |
+| Features | `features/**` | adapter, shared | command/query を中心に実装。設計を先に書き下す。 |
+| Adapter | `adapter/**` | shared, providers | DB・外部サービス。Mock は同階層に配置。 |
+| Shared | `shared/**` | — | DI コンテナ・port・共通ロジック。 |
 
 ---
 
-## 5\. 認証・セッション・デバッグログイン
+## 5\. データアクセスと型管理
 
-### 5.1 ベースライン
-
-- 利用可能ライブラリ: **Auth.js** (SvelteKit adapter) または **Better Auth**。  
-- `src/lib/server/auth.ts` で `createAuth()` 相当の初期化を行い、以下を提供する:  
-  - `handle` フックのラッパー (`handleAuth`) を hooks.server.ts に統合  
-  - `requireAuth`, `requireAdmin`, `currentUser` などのヘルパー  
-  - セッションストレージは Prisma Adapter を推奨  
-- サインイン戦略: Email/Password \+ OAuth など、プロジェクト要件に応じて Auth.js / Better Auth の Provider を設定。
-
-### 5.2 デバッグログイン仕様
-
-開発時の迅速な検証のため、デバッグログインを標準化する。
-
-| 項目 | 内容 |
-| :---- | :---- |
-| エンドポイント | `GET /debug/login` |
-| クエリ | `email` (必須), `redirect_to` (任意、URL エンコード。デフォルト `/`) |
-| 実装概要 | 1\) `requireNonProduction()` で `NODE_ENV !== "production"` を担保。2) 指定メールのユーザーを Auth.js/Better Auth のアダプタ経由で取得。3) セッションを発行し、`setSession` or `createSession` で Cookie を設定。4) `redirect_to` が安全なパスか検証してからリダイレクト。 |
-| セキュリティ | \- 本番では常に 404 を返す。 |
-
-- 存在しないメール指定時は 400 を返しログに記録。  
-- 利用したメールアドレスとアクセス元 IP を `dev.log` に残す。 | | 例 | `http://localhost:5005/debug/login?email=admin@example.com&redirect_to=%2Fadmin` |
-
-**サンプル実装（擬似コード）**
-
-```ts
-// src/routes/debug/login/+server.ts
-import { createAuth } from "$lib/server/auth"
-import { redirect, error } from "@sveltejs/kit"
-
-export const GET = async ({ url, locals }) => {
-  if (locals.runtime.env === "production") throw error(404)
-
-  const email = url.searchParams.get("email")
-  if (!email) throw error(400, "email is required")
-
-  const redirectTo = url.searchParams.get("redirect_to") ?? "/"
-  if (!redirectTo.startsWith("/"))
-    throw error(400, "redirect_to must be a relative path")
-
-  const auth = createAuth()
-  const user = await auth.adapters.user.findByEmail(email)
-  if (!user) throw error(400, "user not found")
-
-  await auth.session.create(locals, { userId: user.id })
-  return redirect(302, redirectTo)
-}
-```
+1. **ZenStack を中心に**: `schema.zmodel` を編集し、`bun run db:generate` で Prisma スキーマと型を生成。型はできるだけ作らない。
+2. **生成 Zod の活用**: `src/lib/generated/zod` 等に出力される Zod スキーマをバリデーションに利用。API 入力の型は `infer<typeof Schema>` を用いる。
+3. **types/ ディレクトリ**: 複数箇所で共有する手書き型を `src/lib/server/types/**` に配置。ZenStack 型にエイリアスを付ける場合もここに置く。
+4. **生成型の利用制限**:
+   - Prisma生成型、Zod生成型は Repository内部、types.ts内部でのみ利用可能
+   - Repository、types.tsから生成型をexportしない
+   - 他の箇所で必要な型は、types.tsで手書き型として定義する
+5. **データ取得の優先順**:
+   - クライアント: ZenStack hooks (`useFindManyXxx` など)
+   - サーバー: features/command & query → flows → shared routes の順で再利用を検討
+   - 管理画面: Prisma 直呼び出し可（admin ルート内に限定）
+6. **トランザクション**: 複数操作をまとめたい場合は features の command 内で Prisma Transaction API を使用。
 
 ---
 
-## 6\. データアクセスと型管理
+## 6\. モック利用ポリシー
 
-1. **ZenStack を中心に**: `schema.zmodel` を編集し、`bun run db:generate` で Prisma スキーマと型を生成。型はできるだけ作らない。  
-2. **生成 Zod の活用**: `src/lib/generated/zod` 等に出力される Zod スキーマをバリデーションに利用。API 入力の型は `infer<typeof Schema>` を用いる。  
-3. **types/ ディレクトリ**: 複数箇所で共有する手書き型を `src/lib/server/types/**` に配置。ZenStack 型にエイリアスを付ける場合もここに置く。  
-4. **データ取得の優先順**:  
-   - クライアント: ZenStack hooks (`useFindManyXxx` など)  
-   - サーバー: features/command & query → flows → shared routes の順で再利用を検討  
-   - 管理画面: Prisma 直呼び出し可（admin ルート内に限定）  
-5. **トランザクション**: 複数操作をまとめたい場合は features の command 内で Prisma Transaction API を使用。
-
----
-
-## 7\. モック利用ポリシー
-
-- **原則**: 本番実装を使う。Mock はテスト・サンドボックス目的で必要性が明確な場合のみ利用。  
-- **配置**: `adapter/repository/mock/`, `adapter/service/mock/`。  
-- **運用**: DI コンテナ (`shared/container.ts`) の override 機能をテストでのみ使用し、通常実行時は Mock をロードしない。`USE_MOCK_IMPLEMENTATIONS` のようなフラグは開発環境限定。  
+- **原則**: 本番実装を使う。Mock はテスト・サンドボックス目的で必要性が明確な場合のみ利用。
+- **配置**: `adapter/repository/mock/`, `adapter/service/mock/`。
+- **運用**: DI コンテナ (`shared/container.ts`) の override 機能をテストでのみ使用し、通常実行時は Mock をロードしない。`USE_MOCK_IMPLEMENTATIONS` のようなフラグは開発環境限定。
 - **テスト**: 外部 API を叩けない場合は Mock を注入するが、契約テストで実装との差異がないかを確認する。
 
 ---
 
-## 8\. 開発プロセス（TDD）
+## 7\. 開発プロセス（TDD）
 
 Red-Green-Refactor サイクルをミニマムステップで繰り返し、常に動作するコードとテストを同時に進化させる。各ステップで「誰の視点で考えるか」「どこまでやるか」を明確に分け、余計な実装を避ける。
 
@@ -189,236 +437,3 @@ Red-Green-Refactor サイクルをミニマムステップで繰り返し、常�
      
    - command/query/flow で通ったテストを土台に、`+page.server.ts` や API ルートへ組み込み、UI を接続する。  
    - 新しい仕様が生まれたら再び Red から始め、小さな成功体験を積み重ねる。
-
----
-
-## 9\. コーディングガイドライン
-
-### 9.1 型と引数
-
-- `any` 禁止。必要に応じて `unknown` \+ ナロイング、または Zod で検証。  
-- Nullable/Optional 引数は避け、呼び出し元で事前検証する。  
-- デフォルト引数は使用しない。呼び出し時に明示的に渡す。
-
-### 9.2 エラーハンドリング
-
-- 例外を握りつぶさない。`try/catch` ではログと再throw・リトライ等の方針を明確化。  
-- 過度なフォールバック（`?? ""`, `?? 0`）で失敗を隠さない。
-
-### 9.3 コード構造
-
-- 重複ロジックは `routes/`・`shared/`・`types/` へ抽出。判断がつかない場合は相談。  
-- 同じ条件判定を複数回書かない（意図的であればコメント）。  
-- 不要な `as` や冗長な null チェックを避ける。
-
-### 9.4 テスト
-
-- テストは仕様のドキュメントとして扱う。命名で振る舞いが分かるように。  
-- `src/lib/server/test/scenarios/**` の各ケース直前に `// flow:` コメントを記述。  
-- カバレッジ目安は 80% 程度。CICD で `bun run test` を必ず実行。
-
-### 9.5 レビュー観点
-
-- 上記原則に加え、`any` 有無、無駄な抽象化、Null の扱い、例外処理、DRY を重点的に確認。
-
----
-
-## 10\. 観測性とデバッグ
-
-1. **Sentry**  
-     
-   - `hooks.client.ts` / `hooks.server.ts` で初期化。  
-   - `src/lib/server/util/logger.ts` から Sentry へログ転送。  
-   - `scripts/sentry-log-test.ts` で手動検証可能。
-
-   
-
-2. **ログ**  
-     
-   - アプリ: `dev.log`  
-   - 定期実行: `cron.log`  
-   - エラーは必ずスタックトレース付きで出力。
-
-   
-
-3. **デタッチ起動**
-
-```shell
-# scripts/dev-detach.sh
-#!/usr/bin/env bash
-set -eu
-bun run dev >dev.log 2>&1 &
-echo $! > .dev.pid
-```
-
-停止時は `bun run kill` または `kill $(cat .dev.pid)`。
-
-4. **デバッグログイン**  
-   - 仕様は §5.2 を参照。  
-   - 利用履歴を `dev.log` に残し、Sentry にも送信できるよう logger を呼び出す。
-
----
-
-## 11\. 実装パターン
-
-### 11.1 共有サーバーアクション
-
-```ts
-// src/lib/server/routes/deliveries/manualSendSelectedAction.ts
-import { Container } from "$lib/server/shared/container"
-
-export async function load(event) {
-  const repo = Container.getDraftDocumentRepository()
-  // フィルタ条件を event から構築して返却
-  return { items: await repo.findPending(/* ... */) }
-}
-
-export const action = async (event) => {
-  const flow = await import(
-    "$lib/server/flows/document-package-process/handler"
-  )
-  await flow.sendSelected(event)
-  return { success: true }
-}
-```
-
-### 11.2 管理ルートでの Prisma 使用
-
-```ts
-// src/routes/admin/users/+page.server.ts
-import { prisma } from "$lib/server/prisma"
-
-export const load = async ({ locals }) => {
-  if (!locals.session?.isAdmin) throw new Error("admin only")
-  return {
-    users: await prisma.user.findMany({ orderBy: { createdAt: "desc" } }),
-  }
-}
-```
-
-### 11.3 Feature command
-
-```ts
-// src/lib/server/features/delivery/command/send-document/handler.ts
-import { Container } from "$lib/server/shared/container"
-import type { SendDocumentInput } from "$lib/server/types/sendDocument"
-
-export async function sendDocument(input: SendDocumentInput) {
-  const repo = Container.getDraftDocumentRepository()
-  const draft = await repo.findDraft(input.draftId)
-  if (!draft) throw new Error("Draft not found")
-  return repo.markAsSent(draft, input)
-}
-```
-
-### 11.4 Flow
-
-```ts
-// src/lib/server/flows/reminder/handler.ts
-import { fetchPendingDeliveries } from "$lib/server/features/delivery/query/fetch-pending/handler"
-import { sendReminder } from "$lib/server/features/contact/command/send-reminder/handler"
-
-export async function executeMonthlyReminder() {
-  const deliveries = await fetchPendingDeliveries()
-  await Promise.all(deliveries.map((item) => sendReminder(item)))
-}
-```
-
-### 11.5 API ルート
-
-```ts
-// src/routes/api/lineworks/callback/+server.ts
-import type { RequestHandler } from "./$types"
-import { Container } from "$lib/server/shared/container"
-
-export const POST: RequestHandler = async ({ request }) => {
-  const service = Container.getLineWorksService()
-  const payload = await request.json()
-  await service.handleWebhook(payload)
-  return new Response("ok", { status: 200 })
-}
-```
-
----
-
-## 12\. 運用コマンド
-
-| コマンド | 用途 |
-| :---- | :---- |
-| `bun run dev` | Docker サービスと開発サーバーをデタッチ起動 |
-| `bun run kill` | 開発サーバー停止 |
-| `bun run build` / `bun run preview` | 本番ビルドとプレビュー |
-| `bun run check` | Svelte ファイル型チェック |
-| `bun run test` / `bun run test:unit` | テスト実行 |
-| `bun run db:generate` | ZenStack → Prisma スキーマ生成 |
-| `bun run db:reset` | DB リセット・マイグレーション適用 |
-| `bun run db:seed` | 初期データ投入 |
-| `bun tsc --noEmit <file>` | 任意ファイルの型検証 |
-
----
-
-## 15\. 実装手順（TDDベース）
-
-1. **テスト実装**  
-     
-   - Red フェーズで仕様をテストとして表現する。テスト名に振る舞いを直書きし、前提→操作→期待値を分ける。  
-   - コンパイルエラーを恐れず、理想の API 形状をテストでデザインする。曖昧な要件はこのタイミングでプロダクトオーナーに確認する。  
-   - ベビーステップを徹底し、一度に 1 つの主張だけをチェックする。テストを追加するたびに直ちに実行し、既存テストがグリーンであることを確認してから次に進む。
-
-   
-
-2. **実装**  
-     
-   - Green フェーズではテストを通すことだけに集中し、最小限のコードで期待動作を満たす。必要ならハードコードや暫定分岐も許容する。  
-   - ZenStack の型や既存ユーティリティを活用し、不要な型宣言や抽象化を避ける。Mock を常用しない方針を忘れず、本番コードをそのまま使う。  
-   - 例外やエッジケースはテストで裏付けが取れてから追加し、YAGNI（先取り実装しない）を徹底する。
-
-   
-
-3. **リファクタリング**  
-     
-   - Refactor フェーズで重複排除・命名整理・責務分割を行う。テストコードも対象に、可読性と仕様説明力を高める。  
-   - ZenStack 生成型や共有ロジックへ寄せ、`types/` へ新規型を追加する場合は多重利用が確定しているか見極める。常に「テストが保護網になっているか」を確認する。  
-   - 振る舞いを変える変更はこの段階では禁止。テストが常にグリーンであることを確認しながら小さく進める。
-
----
-
-## 16\. 設計手順
-
-0. **UI をモックで作成**  
-     
-   - 画面遷移と主要 UI コンポーネントをsrc/routes/mock/\*\* にモック化し、ユーザー（プロダクトオーナー）のレビューを必ず受ける。
-
-   
-
-1. **テーブル設計**  
-     
-   - モデル・リレーション・インデックスを `schema.zmodel` のドラフトで設計する。正規化と性能を意識し、履歴テーブルや外部キー制約を明示。  
-   - 設計後はユーザーとレビューし、ビジネスルールとの齟齬がないかを確認。承認を得てから ZenStack へコミットする。
-
-   
-
-2. **型整理**  
-     
-   - ZenStack 生成型で賄えないものを最小限洗い出し、`types/` に置く候補をメモ。不要な型を増やさないよう、利用箇所が複数存在するか必ず検証する。  
-   - 型追加案は開発チームでレビューし、既存の Zod スキーマで代替できないかを議論する。
-
-   
-
-3. **flow / command / query 設計**  
-     
-   - 各ユースケースで必要な入力・出力・副作用・エラーを文章化。sequence diagram などで結合順を整理する。  
-   - 設計ドキュメント（Issue や PR テンプレート）に記載し、ユーザー／開発チームのレビューを受けてから実装に進む。
-
-   
-
-4. **各フロー実装**  
-     
-   - 決定した設計に基づき、TDD のステップで command → query → flow の順に実装。ZenStack 生成型・既存ユーティリティを最大限利用する。  
-   - 実装後はユーザーに振る舞いをデモし、追加要望や仕様差異があれば再度設計ステップへ戻る。
-
----
-
-## 17\. レビュー手順
-
-コーディングガイドラインを確認し、レビューを行う。  
