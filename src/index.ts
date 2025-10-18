@@ -32,6 +32,7 @@ server.addTool({
 await server.start({
   transportType: "httpStream",
   httpStream: {
-    port: 8080,
+    host: "0.0.0.0",
+    port: 10000,
   },
 });
