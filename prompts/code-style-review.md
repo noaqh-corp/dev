@@ -1451,6 +1451,99 @@ describe("MomentJS", () => {
 **なぜそうするかの理由:**
 Badの例のように、1つの`it`ブロックに複数のアサーション（テストケース）を詰め込むと、テストが失敗した際に、どのケースが原因で失敗したのかを特定するのが難しくなります。また、テストの意図も曖昧になります。Goodの例のように、「30日の月」「うるう年」「平年」といった個別の概念ごとにテストを分割することで、各テストの目的が明確になります。テストが失敗した場合、そのテスト名を見るだけでどの機能に問題があるのかがすぐに分かり、デバッグが迅速に行えます。
 
+
+#### [testing-2] テストのitは日本語でわかりやすく書く
+
+**Bad:**
+```javascript
+it("should handle 30-day months", () => {
+  const date = new MomentJS("1/1/2015");
+  date.addDays(30);
+  assert.equal("1/31/2015", date);
+});
+```
+
+**Good:**
+```javascript
+it("30日の月を処理できる", () => {
+  const date = new MomentJS("1/1/2015");
+  date.addDays(30);
+  assert.equal("1/31/2015", date);
+});
+```
+
+#### [testing-3] テストでのみ共有する処理は専用ヘルパーに抽出する
+
+**Bad:**
+```typescript
+describe("UserRepository", () => {
+  const database = createInMemoryDb();
+
+  it("ユーザーを保存できる", () => {
+    const user = {
+      id: "user-1",
+      name: "山田太郎",
+      email: "taro@example.com",
+      createdAt: new Date("2024-01-01"),
+      status: "active",
+    };
+
+    insertUser(database, user);
+    expect(fetchUser(database, user.id)).toEqual(user);
+  });
+
+  it("ユーザーを更新できる", () => {
+    const user = {
+      id: "user-1",
+      name: "山田太郎",
+      email: "taro@example.com",
+      createdAt: new Date("2024-01-01"),
+      status: "active",
+    };
+
+    insertUser(database, user);
+    updateUser(database, { ...user, status: "inactive" });
+    expect(fetchUser(database, user.id)?.status).toBe("inactive");
+  });
+});
+```
+
+**Good:**
+```typescript
+// tests/user.test.ts
+import { createUserFixture } from "./helpers/createUserFixture";
+
+describe("UserRepository", () => {
+  const database = createInMemoryDb();
+
+  it("ユーザーを保存できる", () => {
+    const user = createUserFixture();
+    insertUser(database, user);
+    expect(fetchUser(database, user.id)).toEqual(user);
+  });
+
+  it("ユーザーを更新できる", () => {
+    const user = createUserFixture();
+    insertUser(database, user);
+    updateUser(database, { ...user, status: "inactive" });
+    expect(fetchUser(database, user.id)?.status).toBe("inactive");
+  });
+});
+
+// tests/helpers/createUserFixture.ts
+export const createUserFixture = (overrides: Partial<User> = {}) => ({
+  id: "user-1",
+  name: "山田太郎",
+  email: "taro@example.com",
+  createdAt: new Date("2024-01-01"),
+  status: "active",
+  ...overrides,
+});
+```
+
+**なぜそうするかの理由:**
+テストでのみ使う初期化処理を各テストに重複して書くと、仕様変更時に修正漏れが発生しやすく、テストコードの意図もノイズに埋もれます。テスト専用のヘルパー関数として共通化すると、フィクスチャの更新を一箇所で済ませられ、テスト本体は振る舞いの検証に集中できます。また、実装コードへ不要なヘルパーを公開することも避けられ、責務の境界が明確になります。
+
 ---
 
 ### **並行処理 (Concurrency)**
@@ -1795,7 +1888,8 @@ function combine(a, b) {
 ```javascript
 function combine(a, b) {
   return a + b;
-}```
+}
+```
 
 **なぜそうするかの理由:**
 誰が、いつ、どのような変更を加えたかという履歴情報は、バージョン管理システム（Gitなど）が完璧に管理してくれます。`git log`や`git blame`といったコマンドを使えば、これらの情報はいつでも確認できます。コード内にこのような履歴コメントを残すことは、バージョン管理システムの役割と重複しており、単なるノイズです。コードは常に、その時点での最新かつクリーンな状態を保つべきです。
