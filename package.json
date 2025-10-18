@@ -1,0 +1,23 @@
+{
+  "name": "noaqh-dev",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun run src/index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/express": "^5.0.3"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.1",
+    "ecto": "^4.6.0",
+    "express": "^5.1.0",
+    "fastmcp": "^3.20.0",
+    "zod": "3"
+  }
+}
