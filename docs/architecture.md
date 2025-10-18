@@ -348,7 +348,7 @@ port の実体を置きます。DBなら Prisma、外部サービスなら各SDK
 │   │   ├── types/                # 複数箇所で使う手書き型
 │   │   │   ├── types.ts
 │   │   │   └── errors.ts
-│   │   └── container.ts          # DIコンテナ
+│   │   └── container.ts          # DIコンテナ（依存性注入）
 │   ├── entrypoint/               # cron.ts / cli.ts 等
 │   │   ├── cron.ts
 │   │   └── cli.ts
@@ -376,6 +376,146 @@ port の実体を置きます。DBなら Prisma、外部サービスなら各SDK
 | Features | `features/**` | adapter, shared | command/query を中心に実装。設計を先に書き下す。 |
 | Adapter | `adapter/**` | shared, providers | DB・外部サービス。Mock は同階層に配置。 |
 | Shared | `shared/**` | — | DI コンテナ・port・共通ロジック。 |
+
+---
+
+## 4-1. 依存性注入（DI）とコンテナ
+
+このアーキテクチャでは、`shared/container.ts` を使用して依存性注入を実現します。これにより、テスト時にモック実装への切り替えが容易になり、実装の交換可能性が保たれます。
+
+### 4-1-1. コンテナの実装
+
+`shared/container.ts` は、シングルトンパターンでインスタンスを管理し、環境変数によってモック実装への切り替えを制御します。
+
+```typescript
+// shared/container.ts
+import type { AdminUserRepository } from "./port/AdminUserRepository";
+import { AdminUserRepositoryPrisma } from "../adapter/repository/AdminUserRepository";
+import { AdminUserRepositoryMock } from "../adapter/repository/mock/AdminUserRepository";
+import { getConfig } from "../util/config";
+
+class Container {
+  private static instances = new Map<string, unknown>();
+  private static useMock = getConfig("USE_MOCK_IMPLEMENTATIONS") === "true";
+
+  // Repository
+  static getAdminUserRepository(): AdminUserRepository {
+    const key = "AdminUserRepository";
+    if (!Container.instances.has(key)) {
+      const instance = Container.useMock
+        ? new AdminUserRepositoryMock()
+        : new AdminUserRepositoryPrisma();
+      Container.instances.set(key, instance);
+    }
+    return Container.instances.get(key) as AdminUserRepository;
+  }
+
+  // Service
+  static getDiscordService(): DiscordService {
+    const key = "DiscordService";
+    if (!Container.instances.has(key)) {
+      const instance = Container.useMock
+        ? new DiscordServiceMock()
+        : new DiscordServiceImpl();
+      Container.instances.set(key, instance);
+    }
+    return Container.instances.get(key) as DiscordService;
+  }
+
+  // テスト用: インスタンスをクリア
+  static clear(): void {
+    Container.instances.clear();
+  }
+
+  // テスト用: 特定の実装をオーバーライド
+  static override<T>(key: string, instance: T): void {
+    Container.instances.set(key, instance);
+  }
+}
+
+export default Container;
+```
+
+### 4-1-2. 使用例
+
+#### features/command での使用
+
+```typescript
+// features/user/command/register-admin/handler.ts
+import Container from "../../../../shared/container";
+
+export async function registerAdmin(email: string, name: string): Promise<void> {
+  const adminUserRepo = Container.getAdminUserRepository();
+  
+  // 重複チェック
+  const existing = await adminUserRepo.search({
+    filters: [{ field: "email", operator: "eq", value: email }],
+    limit: 1,
+  });
+  
+  if (existing.items.length > 0) {
+    throw new Error("Email already registered");
+  }
+  
+  // 登録
+  await adminUserRepo.create({ email, name });
+}
+```
+
+#### テストでの使用
+
+```typescript
+// features/user/command/register-admin/handler.test.ts
+import { describe, it, expect, beforeEach } from "vitest";
+import Container from "../../../../shared/container";
+import { AdminUserRepositoryMock } from "../../../../adapter/repository/mock/AdminUserRepository";
+import { registerAdmin } from "./handler";
+
+describe("registerAdmin", () => {
+  beforeEach(() => {
+    Container.clear();
+    // モック実装をオーバーライド
+    Container.override("AdminUserRepository", new AdminUserRepositoryMock());
+  });
+
+  it("新規管理者を登録できる", async () => {
+    // Arrange
+    const email = "admin@example.com";
+    const name = "Admin User";
+
+    // Act
+    await registerAdmin(email, name);
+
+    // Assert
+    const repo = Container.getAdminUserRepository();
+    const result = await repo.search({
+      filters: [{ field: "email", operator: "eq", value: email }],
+    });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].email).toBe(email);
+  });
+
+  it("重複したメールアドレスでエラーになる", async () => {
+    // Arrange
+    const email = "admin@example.com";
+    const repo = Container.getAdminUserRepository();
+    await repo.create({ email, name: "Existing User" });
+
+    // Act & Assert
+    await expect(registerAdmin(email, "New User")).rejects.toThrow(
+      "Email already registered"
+    );
+  });
+});
+```
+
+### 4-1-3. ルール
+
+- **コンテナの責務**: インスタンスの生成と管理のみ。ビジネスロジックは含めない。
+- **シングルトン管理**: 同じキーに対して常に同じインスタンスを返す。
+- **モック切り替え**: 環境変数 `USE_MOCK_IMPLEMENTATIONS` で制御。本番環境では必ず `false`。
+- **テスト時のオーバーライド**: `Container.override()` を使用して特定の実装を差し替え可能。
+- **クリーンアップ**: テストの `beforeEach` で `Container.clear()` を呼び出し、状態をリセット。
 
 ---
 
