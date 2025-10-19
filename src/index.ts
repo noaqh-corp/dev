@@ -1,17 +1,35 @@
 import { FastMCP } from "fastmcp";
-import { renderTemplate } from "./features/prompt/util";
-import { join } from "path";
+import { getBugCheckPrompt } from "./features/prompt/query/get-bug-check";
 import { getCodeStyleReviewPrompt } from "./features/prompt/query/get-code-style";
+import { getSddPrompt } from "./features/prompt/query/get-sdd";
+import { readFileSync } from "fs";
 
 const server = new FastMCP({
   name: "noaqh-tools",
   version: "0.1.0",
-  instructions:
-    "Noaqhの開発支援ツールを提供します。",
+  instructions: "開発支援ツールを提供します。n:で始まるプロンプトを受け取った場合はnoaqh-toolsに設定されているツールを必ず使いなさい。",
 });
 
 server.addTool({
-  name: "get_code_style_review",
+  name: "get_bug_check_prompt",
+  description: "バグチェック用のプロンプトを取得します。",
+  annotations: {
+    readOnlyHint: true,
+  },
+  async execute() {
+    return {
+      content: [
+        {
+          type: "text",
+          text: await getBugCheckPrompt(),
+        },
+      ],
+    };
+  },
+});
+
+server.addTool({
+  name: "get_code_style_review_prompt",
   description: "コードスタイルをレビューするためのプロンプトを取得します。",
   annotations: {
     readOnlyHint: true,
@@ -21,12 +39,83 @@ server.addTool({
       content: [
         {
           type: "text",
-          text: await getCodeStyleReviewPrompt()
+          text: await getCodeStyleReviewPrompt(),
         },
       ],
     };
   },
+});
 
+server.addTool({
+  name: "get_sdd_prompt",
+  description: "SDD(Software Design Document)作成用のプロンプトを取得します。",
+  annotations: {
+    readOnlyHint: true,
+  },
+  async execute() {
+    return {
+      content: [
+        {
+          type: "text",
+          text: await getSddPrompt(),
+        },
+      ],
+    };
+  },
+});
+
+server.addTool({
+  name: "get_app_doc",
+  description: "アプリ実装ガイドのドキュメントを取得します。",
+  annotations: {
+    readOnlyHint: true,
+  },
+  async execute() {
+    return {
+      content: [
+        {
+          type: "text",
+          text: readFileSync("docs/app.md", "utf-8"),
+        },
+      ],
+    };
+  },
+});
+
+server.addTool({
+  name: "get_architecture_doc",
+  description: "アーキテクチャのドキュメントを取得します。",
+  annotations: {
+    readOnlyHint: true,
+  },
+  async execute() {
+    return {
+      content: [
+        {
+          type: "text",
+          text: readFileSync("docs/architecture.md", "utf-8"),
+        },
+      ],
+    };
+  },
+});
+
+server.addTool({
+  name: "get_code_style_doc",
+  description: "コードスタイルのドキュメントを取得します。",
+  annotations: {
+    readOnlyHint: true,
+  },
+  async execute() {
+    return {
+      content: [
+        {
+          type: "text",
+          text: readFileSync("docs/code-style.md", "utf-8"),
+        },
+      ],
+    };
+  },
 });
 
 await server.start({
