@@ -117,6 +117,23 @@ server.addTool({
     };
   },
 });
+server.addTool({
+  name: "get_implementation_report_template",
+  description: "実装結果レポートのテンプレートを取得します。",
+  annotations: {
+    readOnlyHint: true,
+  },
+  async execute() {
+    return {
+      content: [
+        {
+          type: "text",
+          text: readFileSync("docs/implementation_report_template.md", "utf-8"),
+        },
+      ],
+    };
+  },
+})
 
 await server.start({
   transportType: "httpStream",

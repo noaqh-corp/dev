@@ -90,6 +90,21 @@ Cursorでは `~/.cursor/mcp.json` にサーバーの起動コマンドを登録�
 }
 ```
 
+ROOCode
+
+    "noaqh-tool": {
+      "type": "streamable-http",
+      "url": "https://dev-tool.noaqh.com/mcp"
+    },
+
+
+Gemini cli
+  "mcpServers": {
+    "noaqh-tools": {
+      "httpUrl": "https://dev-tool.noaqh.com/mcp"
+    }
+  }
+
 設定を保存したら、Cursorのコマンドパレットで `MCP: Reload Servers` を実行するか、アプリを再起動してください。エディタ内でツールパネルを開くと、上記のツールが利用可能になります。
 
 ### 3. HTTPストリームサーバーとして起動
