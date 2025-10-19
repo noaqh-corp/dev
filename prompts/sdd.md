@@ -14,14 +14,14 @@ noaqh-toolsが利用可能な場合はnoaqh-toolsのget_architecture_docを利�
 
 ### 実装計画書テンプレート
 フェーズ1で作成する実装計画書のテンプレートです。実装計画書はこのテンプレートに沿う必要があります。
-noaqh-toolsが利用可能な場合はnoaqh-toolsのget_plan_templateを利用してください。利用できない場合は(https://github.com/noaqh-corp/dev/blob/main/docs/plan_template.md)から取得してください。
+noaqh-toolsが利用可能な場合はnoaqh-toolsのget_plan_templateを利用してください。利用できない場合は(https://raw.githubusercontent.com/noaqh-corp/dev/refs/heads/main/docs/plan_template.md)から取得してください。
 
 ### 実装計画書
 フェーズ1で作成する実装計画書です。(spec/{feature_number}-{feature_name}/plan.md)にあなたが作成した文章を記載します。
 
 ### 実装結果レポートテンプレート
 フェーズ2で作成する実装結果レポートのテンプレートです。実装結果レポートはこのテンプレートに沿う必要があります。
-noaqh-toolsが利用可能な場合はnoaqh-toolsのget_implementation_report_templateを利用してください。利用できない場合は(https://github.com/noaqh-corp/dev/blob/main/template/prompts/implementation_report_template.md)から取得してください。
+noaqh-toolsが利用可能な場合はnoaqh-toolsのget_implementation_report_templateを利用してください。利用できない場合は(https://raw.githubusercontent.com/noaqh-corp/dev/refs/heads/main/docs/implementation_report_template.md)から取得してください。
 
 ### 実装結果レポート
 フェーズ2で作成する実装結果レポートです。(spec/{feature_number}-{feature_name}/implementation_report.md)にあなたが作成した文章を記載します。
