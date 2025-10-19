@@ -48,7 +48,7 @@ server.addTool({
 
 server.addTool({
   name: "get_sdd_prompt",
-  description: "SDD(Software Design Document)作成用のプロンプトを取得します。",
+  description: "SDD(Spec Driven Development)、仕様書駆動開発用のプロンプトを取得します。",
   annotations: {
     readOnlyHint: true,
   },
@@ -111,7 +111,7 @@ server.addTool({
       content: [
         {
           type: "text",
-          text: readFileSync("docs/code-style.md", "utf-8"),
+          text: await getCodeStyleReviewPrompt(),
         },
       ],
     };
