@@ -144,7 +144,7 @@ Domainごとに分け、そのDomain内でドメイン的振る舞いを実現�
 上記以外の横断ルールをまとめます。
 
 * 依存の向き：上位（routes/flows/features）→ port → adapter。実装詳細（Prismaや外部SDK）は下位に閉じ込める。
-* 入力境界の検証：外部入力は必ず Zod で検証してからドメインに渡す。
+* 入力境界の検証：HTTPのPayloadや、CLIなどの外部入力は必ず Zod で検証してからドメインに渡す。各ドメインの引数として、zodのスキーマは利用してはならない。
 * 設定の初期化：外部SDKやSentryなどは providers/ で初期化し、コンテナから渡す。
 * 例外扱い：通信・権限・タイムアウトはログを残し再試行方針を決める。業務エラーは戻り値で表現してUIへ伝える。
 * 管理画面の例外：`/routes/admin/**` のみ Prisma 直接利用を許可（運用効率を優先）。それ以外は port 経由。
@@ -178,8 +178,9 @@ Domainごとに分け、そのDomain内でドメイン的振る舞いを実現�
   * types.tsからexportする型は、Prisma生成型やZod生成型を元に作成した手書き型のみ。
   * 単一Domain内でのみ使用する型は、features/\<domain\>/types.tsに定義する。
   * 名前は役割がわかるように（例：`SendDocumentInput`, `ReminderResult`）。
-  * 実行時検証が要る型は Zod スキーマも同時に用意する。
   * UI専用など局所的な型は、その場に閉じ込める（ここへは出さない）。
+  * 引数の入力型として、Zodは使わない。シンプルにuser_id: stringなどの型を定義する。
+  * 返り値の型は、シンプルに{ success: boolean, message: string }などの型を定義する。
 
 ### 3-3. shared/adapterディレクトリ
 
