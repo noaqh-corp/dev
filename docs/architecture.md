@@ -594,7 +594,7 @@ type RegisterAdminResult = {
   message: string;
 }
 
-// 無意味なヘルパー関数を作成しない。
+// 無意味なヘルパー関数を作成してはいけない。
 const parseOutputValue = (outputValue: AdminUserRepositoryCreateOutput): RegisterAdminResult => {
   return {
     userId: outputValue.userId,
@@ -616,6 +616,25 @@ export async function registerAdmin(input: RegisterAdminInput): Promise<Register
 
   return parseOutputValue(result);
 }
+```
+
+#### Bad2:
+
+```typescript
+// 
+import {z} from "zod";
+
+// 入力のバリデーションスキーマをzodで定義してはいけない。zodのバリデーションはフォーム入力や、httpリクエストのバリデーションなど不明な入力に対してのみ使用する。
+const registerAdminInputSchema = z.object({
+  email: z.string(),
+  name: z.string(),
+});
+
+export async function registerAdmin(input: z.infer<typeof registerAdminInputSchema>): Promise<void> {
+  // 入力をバリデーションにzodを仕様してはいけない。
+  const validatedInput = registerAdminInputSchema.parse(input);
+}
+
 ```
 
 ### 8-2. types.tsの実装サンプル
@@ -648,19 +667,84 @@ export type UserId = string;
 
 
 export type User = {
-  // 無駄な型に依存しない。
+  // 無駄な型に依存してはいけない。
   id: UserId;
-  // 中途半端に生成型を使用しない。
+  // 中途半端に生成型を使用してはいけない。
   name: UserPrisma['name'];
 }
-// 引数の入力用の無駄な型は定義しない。
+// 引数の入力用の無駄な型は定義してはいけない。
 export type RegisterAdminInput = {
   email: string;
   name: string;
 }
-// 返り値の無駄な型は定義しない。
+// 返り値の無駄な型は定義してはいけない。
 export type RegisterAdminResult = {
   userId: string;
 }
 
+```
+
+### 8-3. repositoryの実装サンプル
+[basedir]/adapter/repository/<domain>Repository.tsについて
+
+#### Good:
+
+```typescript
+
+import { PrismaClient } from '$lib/server/generated/client';
+// 型を適切にimportしており適切なものを使用している。
+import type { Charge } from '$lib/server/features/billing/types';
+// キチンとportをimportしており適切なものを使用している。
+import type { BillingRepository } from '$lib/server/adapter/port/billingRepository';
+
+const prisma = new PrismaClient();
+
+export class BillingRepositoryPrisma implements BillingRepository {
+    // Omitを活用することで新たな型を定義せずに、最小限かつコンパクトな実装ができている。
+    async createCharge(input: Omit<Charge, 'id'>): Promise<Charge> {
+        // 適切に型を利用することでmapなど型変換の関数を実装しなくても返り値、入力値が適切な型であることを保証できている。
+        return await prisma.charge.create({
+            data: input,
+        });
+    }
+}
+```
+
+#### Bad:
+
+```typescript
+import type { z } from "zod";
+
+// Repository内でドメイン型を定義しない
+const billingChargeSchema = z.object({
+  amount: z.number(),
+  description: z.string(),
+});
+
+type BillingCharge = z.infer<typeof billingChargeSchema>;
+
+// Input, Outputの型を定義しない。
+type CreateBillingChargeInput = z.infer<typeof billingChargeSchema>;
+type CreateBillingChargeOutput = z.infer<typeof billingChargeSchema>;
+
+// 適切に型を処理していれば不要なはずのmap関数を作成してはいけない
+const mapBillingChargeToDomain = (charge: CreateBillingChargeOutput): BillingCharge => {
+    return {
+        id: charge.id,
+        amount: charge.amount,
+        description: charge.description,
+    };
+}
+
+class BillingRepositoryPrisma implements BillingRepository {
+    // inputの型を定義してはいけない
+    // outputの型を定義してはいけない
+    async createCharge(input: CreateBillingChargeInput): Promise<CreateBillingChargeOutput> {
+        const charge = await prisma.charge.create({
+            data: input,
+        });
+        // map関数を作成してはいけない
+        return mapBillingChargeToDomain(charge);
+    }
+}
 ```
