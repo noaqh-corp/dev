@@ -178,13 +178,14 @@ export const load = async ({ locals }) => {
 ```ts
 // src/lib/server/features/delivery/command/send-document/handler.ts
 import { Container } from "$lib/server/shared/container"
-import type { SendDocumentInput } from "$lib/server/types/sendDocument"
 
-export async function sendDocument(input: SendDocumentInput) {
+import { DraftDocument } from "$lib/server/types/draftDocument"
+
+export async function sendDocument(draftDocument: DraftDocument) {
   const repo = Container.getDraftDocumentRepository()
-  const draft = await repo.findDraft(input.draftId)
+  const draft = await repo.findDraft(draftDocument.id)
   if (!draft) throw new Error("Draft not found")
-  return repo.markAsSent(draft, input)
+  return repo.markAsSent(draft, draftDocument)
 }
 ```
 

@@ -177,7 +177,8 @@ Domainごとに分け、そのDomain内でドメイン的振る舞いを実現�
   * Prisma生成型、Zod生成型はtypes.ts、Repository内部でのみ利用可能。生成型はexportしない。
   * types.tsからexportする型は、Prisma生成型やZod生成型を元に作成した手書き型のみ。
   * 単一Domain内でのみ使用する型は、features/\<domain\>/types.tsに定義する。
-  * 名前は役割がわかるように（例：`SendDocumentInput`, `ReminderResult`）。
+  * 名前は役割がわかるように（例：`User`, `Product`）。
+  * ~Input, ~Resultなどの型は定義しない。
   * UI専用など局所的な型は、その場に閉じ込める（ここへは出さない）。
   * 引数の入力型として、Zodは使わない。シンプルにuser_id: stringなどの型を定義する。
   * 返り値の型は、シンプルに{ success: boolean, message: string }などの型を定義する。
@@ -295,6 +296,8 @@ port の実体を置きます。DBなら Prisma、外部サービスなら各SDK
 
 ## 3\. ディレクトリ構造
 
+basedirはsrc/が存在すればsrc/、存在しなければ.がベースとなる。
+sveltekitの場合はsrc/lib/server/がベースとなる。
 
 ```
 .
@@ -403,9 +406,7 @@ class Container {
   static getAdminUserRepository(): AdminUserRepository {
     const key = "AdminUserRepository";
     if (!Container.instances.has(key)) {
-      const instance = Container.useMock
-        ? new AdminUserRepositoryMock()
-        : new AdminUserRepositoryPrisma();
+      const instance = new AdminUserRepositoryPrisma();
       Container.instances.set(key, instance);
     }
     return Container.instances.get(key) as AdminUserRepository;
@@ -415,9 +416,7 @@ class Container {
   static getDiscordService(): DiscordService {
     const key = "DiscordService";
     if (!Container.instances.has(key)) {
-      const instance = Container.useMock
-        ? new DiscordServiceMock()
-        : new DiscordServiceImpl();
+      const instance = new DiscordServiceImpl();
       Container.instances.set(key, instance);
     }
     return Container.instances.get(key) as DiscordService;
@@ -446,20 +445,10 @@ export default Container;
 import Container from "../../../../shared/container";
 
 export async function registerAdmin(email: string, name: string): Promise<void> {
+  // Repositoryを取得
   const adminUserRepo = Container.getAdminUserRepository();
   
-  // 重複チェック
-  const existing = await adminUserRepo.search({
-    filters: [{ field: "email", operator: "eq", value: email }],
-    limit: 1,
-  });
-  
-  if (existing.items.length > 0) {
-    throw new Error("Email already registered");
-  }
-  
-  // 登録
-  await adminUserRepo.create({ email, name });
+  // ~~省略~~
 }
 ```
 
@@ -475,37 +464,15 @@ import { registerAdmin } from "./handler";
 describe("registerAdmin", () => {
   beforeEach(() => {
     Container.clear();
-    // モック実装をオーバーライド
-    Container.override("AdminUserRepository", new AdminUserRepositoryMock());
   });
 
   it("新規管理者を登録できる", async () => {
-    // Arrange
-    const email = "admin@example.com";
-    const name = "Admin User";
+    // モックをオーバーライド。必ずitの最上部に記載する。
+    Container.override("AdminUserRepository", new AdminUserRepositoryMock());
 
-    // Act
-    await registerAdmin(email, name);
-
-    // Assert
-    const repo = Container.getAdminUserRepository();
-    const result = await repo.search({
-      filters: [{ field: "email", operator: "eq", value: email }],
-    });
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0].email).toBe(email);
-  });
-
-  it("重複したメールアドレスでエラーになる", async () => {
-    // Arrange
-    const email = "admin@example.com";
-    const repo = Container.getAdminUserRepository();
-    await repo.create({ email, name: "Existing User" });
-
-    // Act & Assert
-    await expect(registerAdmin(email, "New User")).rejects.toThrow(
-      "Email already registered"
-    );
+    // モックが有効なので、モックの実装が呼ばれる。
+    await registerAdmin("admin@example.com", "Admin User");
+    // ~省略~
   });
 });
 ```
@@ -578,3 +545,122 @@ Red-Green-Refactor サイクルをミニマムステップで繰り返し、常�
      
    - command/query/flow で通ったテストを土台に、`+page.server.ts` や API ルートへ組み込み、UI を接続する。  
    - 新しい仕様が生まれたら再び Red から始め、小さな成功体験を積み重ねる。
+
+
+## 8\. command/query/flowの実装サンプル
+
+### 8-1. handlerの実装サンプル
+
+#### Good:
+
+```typescript
+// Containerをインポートできている。
+import Container from "$lib/server/shared/container";
+
+
+// 無駄な型(~Input, ~Result)を定義していない。
+// 返り値が最小限かつ説明的である。
+export async function registerAdmin(email: string, name: string): Promise<{
+  userId: string;
+}> {
+  // Repositoryを取得
+  const adminUserRepo = Container.getAdminUserRepository();
+  // Repositoryのメソッドを呼び出す。
+  const result = await adminUserRepo.create({ email, name });
+  return result.userId;
+}
+```
+
+#### Bad:
+
+```typescript
+
+// Repository,Serviceは必ずContainerから取得する。
+import { AdminUserRepositoryPrisma } from "$lib/server/adapter/repository/AdminUserRepository";
+
+// 無意味なヘルパー関数により不必要なimportを行っている
+import type { AdminUserRepositoryCreateOutput } from "$lib/server/adapter/repository/AdminUserRepository";
+
+// 無意味な型を定義してはいけない
+type RegisterAdminInput = {
+  email: string;
+  name: string;
+}
+
+// 無意味な型を定義してはいけない
+type RegisterAdminResult = {
+  userId: string;
+  // 不要なカラムを返してはいけない。最小限のカラムのみ返す。
+  message: string;
+}
+
+// 無意味なヘルパー関数を作成しない。
+const parseOutputValue = (outputValue: AdminUserRepositoryCreateOutput): RegisterAdminResult => {
+  return {
+    userId: outputValue.userId,
+    message: outputValue.message,
+  }
+}
+
+export async function registerAdmin(input: RegisterAdminInput): Promise<RegisterAdminResult> {
+  // 直接インスタンスを作成してはいけない。
+  const adminUserRepo = new AdminUserRepositoryPrisma();
+  // Repositoryのメソッドを呼び出す。
+  const result = await adminUserRepo.create(input);
+
+  // 無意味な変数を作成してはいけない。
+  const outputValue = {
+    userId: result.userId,
+    message: "success",
+  }
+
+  return parseOutputValue(result);
+}
+```
+
+### 8-2. types.tsの実装サンプル
+[basedir]/features/<domain>/types.tsについて
+
+#### VeryGood:
+
+```typescript
+// 生成された型の再エクスポートをしており、複数箇所での型定義重複を避けている。また、types.tsから再エクスポートすることで意味的な型を持ち回すことができる。
+import type { User as UserPrisma } from "$lib/server/generated/zod";
+export type User = UserPrisma;
+```
+
+#### Good:
+```typescript
+// 手書き型を定義する。DB定義前等の場合はこちらを使用する。
+export type User = {
+  id: string;
+  name: string;
+};
+```
+
+#### Bad:
+
+```typescript
+
+import type { User as UserPrisma } from "$lib/server/generated/zod";
+// 無駄な型を定義してはいけない。
+export type UserId = string;
+
+
+export type User = {
+  // 無駄な型に依存しない。
+  id: UserId;
+  // 中途半端に生成型を使用しない。
+  name: UserPrisma['name'];
+}
+// 引数の入力用の無駄な型は定義しない。
+export type RegisterAdminInput = {
+  email: string;
+  name: string;
+}
+// 返り値の無駄な型は定義しない。
+export type RegisterAdminResult = {
+  userId: string;
+}
+
+```

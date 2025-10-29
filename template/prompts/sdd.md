@@ -80,3 +80,6 @@ noaqh-toolsが利用可能な場合はnoaqh-toolsのget_implementation_report_te
 3. [] 作成した下書きを確認し、必要に応じて修正します。
 4. [] 問題なければユーザーに報告してください。
 
+
+## ユーザーからの要求
+$1

@@ -3,9 +3,14 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "bin": {
+    "noaqh-dev": "./bin/noaqh-dev"
+  },
   "scripts": {
     "start": "bun run src/index.ts",
-    "generate-prompt": "bun run script/generate-prompt.ts"
+    "generate-prompt": "bun run script/generate-prompt.ts",
+    "install-prompts": "bun run generate-prompt && bun run script/install-codex-prompts.ts",
+    "cli": "bun run src/cli.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

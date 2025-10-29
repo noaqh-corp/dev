@@ -27,7 +27,8 @@ Noaqhプロジェクトの開発を支援するツール集です。開発ガイ
 │   ├── index.ts            # MCPサーバーのエントリーポイント
 │   └── features/prompt/    # プロンプト生成ロジック
 └── script/
-    └── generate-prompt.ts  # プロンプト生成スクリプト
+    ├── generate-prompt.ts  # プロンプト生成スクリプト
+    └── install-codex-prompts.ts # Codex CLI 用プロンプトインストーラ
 ```
 
 ## 外部公開コンテンツ
@@ -49,6 +50,30 @@ bun run generate-prompt
 ```
 
 このコマンドは`template/prompts/`内のテンプレートを処理し、`prompts/`ディレクトリに最終的なプロンプトファイルを生成します。
+
+## Codexスラッシュコマンドとして利用
+
+Codex CLIでは`~/.codex/prompts/`内のMarkdownファイルを`/prompts:<ファイル名>`として呼び出せます。`prompts/`配下に生成されたファイルをCodexでも共有できるよう、インストールスクリプトを用意しています。
+
+```bash
+# プロンプトをホームディレクトリにコピー
+noaqh-dev install
+```
+
+このコマンドは各Markdownファイルを`~/.codex/prompts/n-*.md`としてコピーし、既存ファイルを上書きします。Codex CLIを再起動すると`/prompts:n-bug-check`のように入力してプロンプトを呼び出せます。生成済みのMarkdownを利用せず即座にコピーしたい場合は従来どおり`bun run install-prompts`も利用できます。
+
+## CLIコマンド
+
+開発ツールをCLIとして利用できます。ヘルプは次のコマンドで確認してください。
+
+```bash
+bun run src/cli.ts --help
+# または
+noaqh-dev --help
+```
+
+- `noaqh-dev install`: `prompts/`内のMarkdownファイルを`~/.codex/prompts/`へコピーします（上書きあり）。
+- `noaqh-dev check-update`: 現在のリポジトリで`origin/main`が先行しているかをチェックし、先行している場合はコミット数と`git pull`手順を案内します。
 
 ## MCPサーバーとして利用
 
