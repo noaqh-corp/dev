@@ -234,10 +234,11 @@
   - [] 必要な型を定義
   - [] Prisma/Zod生成型を使用する場合は手書き型として再定義
 
-#### 実装セット2: [実装セット名]
+#### 実装セット2: [実装セット名] 
 
 <!--
-  features/command, features/query, flows のいずれかの実装セット
+  features/<domain>/command, features/<domain>/query, flows のいずれかの実装セット
+  実装セットは1コマンドに対して1つ作成する。「command, query, flow実装」のようにまとめた実装セットは作成せず、「create-todo実装」のように1コマンドに対して1つ作成する。
   handler.tsを実装する場合は必ずエントリーポイントを明記する。
 -->
 
