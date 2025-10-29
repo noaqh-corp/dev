@@ -238,6 +238,7 @@
 
 <!--
   features/command, features/query, flows のいずれかの実装セット
+  handler.tsを実装する場合は必ずエントリーポイントを明記する。
 -->
 
 - 対象ファイル: [対象ファイル(複数可能)]
