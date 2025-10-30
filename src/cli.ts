@@ -6,6 +6,7 @@ import {
   GitReferenceError,
   GitRepositoryNotFoundError,
 } from "./features/git/check-update"
+import { generatePrompts } from "../script/generate-prompt"
 
 const HELP_TEXT = `noaqh-dev CLI
 
@@ -48,6 +49,10 @@ function printHelp(): void {
 
 async function handleInstall(): Promise<void> {
   try {
+    // まずプロンプトを生成
+    await generatePrompts()
+
+    // 次にプロンプトをインストール
     const result = await installPrompts()
 
     for (const file of result.overwritten) {
