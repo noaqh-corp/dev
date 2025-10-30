@@ -79,4 +79,4 @@ noaqh-toolsが利用可能な場合はnoaqh-toolsのget_implementation_report_te
 
 
 ## ユーザーからの要求
-$1
+$ARGUMENTS
