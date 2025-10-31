@@ -14,30 +14,30 @@ date: 2025-10-18
 ドメイン駆動開発や、クリーンアーキテクチャは弊社が関わるプロジェクトの特徴からするとTooMuchArchitectureである。弊社は0→1開発が非常に多く、ドメイン駆動設計は設計工程に時間がかかりすぎ、ファイル数も非常に増えてしまうためオーバーエンジニアリングである。
 
 ### 1-2 このアーキテクチャの意図
-このアーキテクチャでは、command/query/flowにCQRSの考え方でドメイン的振る舞いを内包することがポイントである。これにより、モジュールに対応したクラスにドメイン的振る舞いを内包することなくユースケースを達成でき、後述するAdapter層でモックを用いることで特殊な状態を再現したテストも容易に行える。
-また、ユースケースに合わせてドメイン的振るまいをディレクトリ内に閉じこめることで、AIを活用した開発において最小限のコンテキストで開発を行えるようにすることができる。
+このアーキテクチャでは、command/query/flowにCQRSの考え方でドメイン的振る舞いを内包することがポイントである。これにより、モジュールに対応したクラスにドメイン的振る舞いを内包することなく操作(operation)を達成でき、後述するAdapter層でモックを用いることで特殊な状態を再現したテストも容易に行える。
+また、操作(operation)に合わせてドメイン的振るまいをディレクトリ内に閉じこめることで、AIを活用した開発において最小限のコンテキストで開発を行えるようにすることができる。
 対応するテストも同じディレクトリ内に配置し、独立したモジュールとして管理することで、テストコードも最小限のコンテキストで管理できる。
 
 ## 2. ドメイン振る舞いの設計コンセプト
 ビジネスの決まりごとや判断を、機能ごとに小さく分けて書きます。
 「読むだけの処理」と「状態を変える処理」を分ける考え方 → コマンド・クエリの分離（CQRS）を採用します。外部サービス(外部APIやDB)への出入りは、直接触らず「port」で受けます。このport → ポート（Port）、実体の配線 → アダプター（Adapter）と呼びます。
 
-* ユースケース単位で最小化する：command/は状態変更、query/は参照だけ。混ぜない。
+* 操作(operation)単位で最小化する：command/は状態変更、query/は参照だけ。混ぜない。
 * 外部とのやりとりは port 経由に限定する。テストでは mock を差し替えて再現性を高める。
 * 型は ZenStack 生成物を基準にする。入力は Zod で検証し、出力は型で保証する。
-* 複数ユースケースをまたぐ順序や再試行は flow に寄せ、ドメインの判断は feature に置く。
+* 複数操作(operation)をまたぐ順序や再試行は flow に寄せ、ドメインの判断は feature に置く。
 
 ### 2-1. featuresディレクトリ
-Domainごとに分け、そのDomain内でドメイン的振る舞いを実現する。
+ドメインごとに分け、そのドメイン内でドメイン的振る舞いを実現する。
 
 * 構成の例
 
   ```
   features/<domain>/
-    command/<usecase>/handler.ts     // 状態を変える(後述)
-    command/<usecase>/handler.test.ts     // テスト(後述)
-    query/<usecase>/handler.ts       // 読み取りだけ(後述)
-    query/<usecase>/handler.test.ts       // テスト(後述)
+    command/<operation>/handler.ts     // 状態を変える(後述)
+    command/<operation>/handler.test.ts     // テスト(後述)
+    query/<operation>/handler.ts       // 読み取りだけ(後述)
+    query/<operation>/handler.test.ts       // テスト(後述)
     utils.ts     // ユーティリティ関数
     types.ts     // 型定義
   ```
@@ -50,29 +50,29 @@ Domainごとに分け、そのDomain内でドメイン的振る舞いを実現�
   * DB・外部APIは触らない。`shared/port` のインターフェースを使い、実体はコンテナから受け取る。
   * 例外と業務エラーを分ける。接続失敗などは例外で落とし、仕様上の不一致は戻り値や型で表す。
   * 取引のまとまり（トランザクション）は command 側で開始・終了する。query では持たない。
-  * utils.tsには、そのDomain内でのみ使用するかつ、**複数のユースケースで共通で使用する関数**を定義する。
+  * utils.tsには、そのドメイン内でのみ使用するかつ、**複数の操作(operation)で共通で使用する関数**を定義する。
 * テスト
 
-  * 基本は同階層でユースケース単位のテストを置く。
+  * 基本は同階層で操作(operation)単位のテストを置く。
 
 #### 2-1-1. commandディレクトリ
-変更を行うユースケースを実装する。
+変更を行う操作(operation)を実装する。
 
 * 構成の例
 
   ```
   features/<domain>/
-    command/<usecase>/handler.ts     // 状態を変える
-    command/<usecase>/handler.test.ts     // テスト
-    [command/<usecase>/<name>.ts]     // hander.tsが長大になった場合に適切に分割する
+    command/<operation>/handler.ts     // 状態を変える
+    command/<operation>/handler.test.ts     // テスト
+    [command/<operation>/<name>.ts]     // hander.tsが長大になった場合に適切に分割する
     
   ```
 
 * ルール
 
-  * 変更を行うユースケースは command 側で行う。
-  * 特にドメイン的振る舞いが無く、保存のみを行う場合はusecaseは作成しない。ドメイン的に重複チェックや、バリデーションを行う場合はusecaseを作成する。
-  * 命名は意味的にわかりやすく、ユースケースを表すようにする。update-userなどの実装に寄りすぎた命名は避ける。
+  * 変更を行う操作(operation)は command 側で行う。
+  * 特にドメイン的振る舞いが無く、保存のみを行う場合はoperationは作成しない。ドメイン的に重複チェックや、バリデーションを行う場合はoperationを作成する。
+  * 命名は意味的にわかりやすく、操作(operation)を表すようにする。update-userなどの実装に寄りすぎた命名は避ける。
     
     Good:
         features/notification/send-push-notification/handler.ts
@@ -80,28 +80,35 @@ Domainごとに分け、そのDomain内でドメイン的振る舞いを実現�
     Bad:
         features/user/update-user/handler.ts
         features/contact/create-contact/handler.ts
+
   * hander.tsが長大になった場合に適切に分割する。<name>.tsを作成する。
 
-  * 基本的に返り値はvoidであるが、性質上返り値が必要な場合は、features/\<domain\>/types.tsで型定義を行う。
-  * 基本的に型は新規作成しない。features/\<domain\>/types.ts、shared/typesに定義されている型を使用する。
+  * `search(input: SearchInput): SearchResult`のように~Input, ~Resultなどの型を絶対に作成しない。`search(userId?: string, tenantId?: string, limit?: number, offset?: number): Promise<{
+    items: User[],
+    total: number,
+    page: number,
+    pageSize: number,
+  }>`のような型を定義を行い、無駄な~Input, ~Resultなどの型を定義しない。
+  * 基本的に返り値はvoidであるが、性質上特殊な返り値が必要な場合は、handler.ts内で必要最小限のプロパティのみ定義した型を定義する。
   * Prisma生成型、Zod生成型は使用しない。必要な型はfeatures/\<domain\>/types.tsまたはshared/typesで手書き型として定義する。
   * handler.ts内で型定義は行わない。必ず types.ts に集約する。
 
 #### 2-1-2. queryディレクトリ
+queryディレクトリは、読み取りだけの副作用がない操作(operation)を実装する。
 
 * 構成の例
 
   ```
   features/<domain>/
-    query/<usecase>/handler.ts       // 読み取りだけ
-    query/<usecase>/handler.test.ts       // テスト
-    [query/<usecase>/<name>.ts]     // hander.tsが長大になった場合に適切に分割する
+    query/<operation>/handler.ts       // 読み取りだけ
+    query/<operation>/handler.test.ts       // テスト
+    [query/<operation>/<name>.ts]     // hander.tsが長大になった場合に適切に分割する
   ```
 
 * ルール
 
   * 単純な読み取りや検索のみはRepositoryを使用する。
-  * 命名は意味的にわかりやすく、ユースケースを表すようにする。get-user-profileなどの実装に寄りすぎた命名は避ける。list-taskなど、内部でRepositoryを呼び出すだけのようなusecaseは絶対作成しない。
+  * 命名は意味的にわかりわすく、操作(operation)を表すようにする。get-user-profileなどの実装に寄りすぎた命名は避ける。list-taskなど、内部でRepositoryを呼び出すだけのようなoperationは絶対作成しない。
     
     Good:
         features/ticket/list-available-tickets/handler.ts
@@ -118,8 +125,8 @@ Domainごとに分け、そのDomain内でドメイン的振る舞いを実現�
 
 ### 2-2. flowsディレクトリ
 
-複数のユースケースを「どの順番で」「いつ」「失敗したらどうするか」をまとめます。
-手順をまとめて管理すること → オーケストレーションと呼びます。
+複数の操作(operation)を「どの順番で」「いつ」「失敗したらどうするか」をまとめます。
+操作(operation)をまとめて管理すること → フローと呼びます。
 
 * 役割
 
@@ -129,13 +136,13 @@ Domainごとに分け、そのDomain内でドメイン的振る舞いを実現�
 * 構成の例
 
   ```
-  flows/<flow-name>/
+  flows/<operation>/
     handler.ts      // メイン手順
     handler.test.ts // テスト
   ```
 * テスト
 
-  * 同階層でユースケース単位のテストを置く。
+  * 同階層で操作(operation)単位のテストを置く。
 
 ---
 
@@ -176,7 +183,7 @@ Domainごとに分け、そのDomain内でドメイン的振る舞いを実現�
 
   * Prisma生成型、Zod生成型はtypes.ts、Repository内部でのみ利用可能。生成型はexportしない。
   * types.tsからexportする型は、Prisma生成型やZod生成型を元に作成した手書き型のみ。
-  * 単一Domain内でのみ使用する型は、features/\<domain\>/types.tsに定義する。
+  * 単一ドメイン内でのみ使用する型は、features/\<domain\>/types.tsに定義する。
   * 名前は役割がわかるように（例：`User`, `Product`）。
   * ~Input, ~Resultなどの型は定義しない。
   * UI専用など局所的な型は、その場に閉じ込める（ここへは出さない）。
@@ -221,38 +228,16 @@ port の実体を置きます。DBなら Prisma、外部サービスなら各SDK
 
   ```
   * get(id: string): Promise<Item>
-  * search(params: SearchParams): Promise<SearchResult<Item>>
+  * search(userId?: string, tenantId?: string, limit?: number, offset?: number): Promise<{
+    items: User[],
+    total: number,
+    page: number,
+    pageSize: number,
+  }>
   * create(data: Partial<Item>): Promise<Item>
   * update(id: string, data: Partial<Omit<Item, 'id'>>): Promise<Item>
   * delete(id: string): Promise<void>
 
-  // 型定義（shared/types/types.tsではなく、Repository内部で定義する）
-  interface SearchParams {
-    offset?: number
-    limit?: number
-    sort?: {
-      field: string
-      order: 'asc' | 'desc'
-    }
-    filters?: Filter[]
-    search?: {
-      fields: string[]
-      query: string
-    }
-  }
-
-  interface Filter {
-    field: string
-    operator: 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'startsWith' | 'endsWith' | 'in' | 'notIn'
-    value: string | number | boolean | string[] | number[]
-  }
-
-  interface SearchResult<T> {
-    items: T[]
-    total: number
-    page: number
-    pageSize: number
-  }
   ```
 
 
@@ -272,9 +257,10 @@ port の実体を置きます。DBなら Prisma、外部サービスなら各SDK
   * 内部でRepositoryには依存しない。
   * ライブラリからimportした型はそのまま使用せず、shared/types/types.tsで手書き型として定義する。
   * Service内部で生成型を使用する場合は、exportしない。
+  * Serviceはfeatures/**、flows/**に依存しない。
   * DiscordServiceの例
   ```
-  // shared/types/types.tsではなく、Service内部で定義する
+  // サービス特有の処理はshared/types/types.tsではなく、Service内部で定義する
   export type Channel = {
     id: string
     name: string
@@ -297,7 +283,7 @@ port の実体を置きます。DBなら Prisma、外部サービスなら各SDK
 ## 3\. ディレクトリ構造
 
 basedirはsrc/が存在すればsrc/、存在しなければ.がベースとなる。
-sveltekitの場合はsrc/lib/server/がベースとなる。
+Sveltekitの場合はsrc/lib/server/がベースとなる。
 
 ```
 .
@@ -315,7 +301,7 @@ sveltekitの場合はsrc/lib/server/がベースとなる。
 │   │       └── mock/
 │   │           ├── DiscordService.ts
 │   │           └── LineWorksService.ts
-│   ├── features/                 # ドメインユースケース (command/query 中心)
+│   ├── features/                 # ドメイン操作(operation) (command/query 中心)
 │   │   ├── notification/
 │   │   │   ├── command/
 │   │   │   │   └── send-push-notification/
@@ -336,7 +322,7 @@ sveltekitの場合はsrc/lib/server/がベースとなる。
 │   │           └── list-purchased-products/
 │   │               ├── handler.ts
 │   │               └── handler.test.ts
-│   ├── flows/                    # 複数ユースケースのオーケストレーション
+│   ├── flows/                    # 複数操作(operation)のフロー
 │   │   ├── reminder/
 │   │   │   ├── handler.ts
 │   │   │   └── test.ts
@@ -364,8 +350,8 @@ sveltekitの場合はsrc/lib/server/がベースとなる。
 
 | ディレクトリ | 役割 | ポイント |
 | :---- | :---- | :---- |
-| `features/<Domain>` | ユースケース単位の command/query | まずここから設計を始める。`core/` は作らない。 |
-| `flows/<Flow>` | 複数ユースケースの組み合わせ | 状態遷移や通知など横断処理を集約。 |
+| `features/<Domain>` | 操作(operation)単位の command/query | まずここから設計を始める。`core/` は作らない。 |
+| `flows/<Flow>` | 複数操作(operation)の組み合わせ | 状態遷移や通知など横断処理を集約。 |
 | `shared/port` | 抽象インターフェース | Adapter 実装の契約を定義。 |
 | `shared/types` | 手書きの共有型 | ZenStack で賄えない複数箇所共有型のみ配置。 |
 | `adapter/*/mock/` | テスト用 Mock | 原則テスト専用。常用しない。 |
@@ -376,7 +362,7 @@ sveltekitの場合はsrc/lib/server/がベースとなる。
 
 | レイヤ | 主な配置 | 依存可能 | 制約 |
 | :---- | :---- | :---- | :---- |
-| Flows | `flows/**` | features, adapter, shared | 2 つ以上のユースケースを束ねる場合のみ。 |
+| Flows | `flows/**` | features, adapter, shared | 2 つ以上の操作(operation)を束ねる場合のみ。 |
 | Features | `features/**` | adapter, shared | command/query を中心に実装。設計を先に書き下す。 |
 | Adapter | `adapter/**` | shared, providers | DB・外部サービス。Mock は同階層に配置。 |
 | Shared | `shared/**` | — | DI コンテナ・port・共通ロジック。 |

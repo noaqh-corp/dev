@@ -269,7 +269,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 ### 13.4 flow / command / query 設計
 
-- 各ユースケースで必要な入力・出力・副作用・エラーを文章化。sequence diagram などで結合順を整理する
+- 各操作で必要な入力・出力・副作用・エラーを文章化。sequence diagram などで結合順を整理する
 - 設計ドキュメント（Issue や PR テンプレート）に記載し、ユーザー／開発チームのレビューを受けてから実装に進む
 
 ### 13.5 各フロー実装
