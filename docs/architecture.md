@@ -693,6 +693,29 @@ export class BillingRepositoryPrisma implements BillingRepository {
             data: input,
         });
     }
+    // 適切に型を利用することで、メソッドの引数が適切な型であることを保証できている。
+    // 入力にInput型を定義せず、引数のみでメソッドの入力を定義している。検索系のメソッドのみオプショナルな引数を持つことができている。
+    // orderBy, orderDirectionを定義することで並べ替えを行うことができている。
+    // offset, limitを定義することでページングを行うことができている。
+    async searchCharges(userId?: string, tenantId?: string, limit?: number, offset?: number, orderBy?: 'createdAt' | 'updatedAt' | 'amount' | 'description', orderDirection?: 'asc' | 'desc'): Promise<Charge[]> {
+        const where: Prisma.ChargeWhereInput = {};
+        if (userId) {
+            where.userId = userId;
+        }
+        if (tenantId) {
+            where.tenantId = tenantId;
+        }
+        const orderByInput: Prisma.ChargeOrderByWithRelationInput = {};
+        if (orderBy && orderDirection) {
+            orderByInput[orderBy] = orderDirection;
+        }
+        return await prisma.charge.findMany({
+            where,
+            skip: offset,
+            take: limit,
+            orderBy: orderByInput,
+        });
+    }
 }
 ```
 
@@ -721,6 +744,26 @@ const mapBillingChargeToDomain = (charge: CreateBillingChargeOutput): BillingCha
         description: charge.description,
     };
 }
+// Input型を定義してはいけない
+type SearchChargesInput = {
+    userId?: string;
+    tenantId?: string;
+    limit?: number;
+    offset?: number;
+}
+
+// Output型を定義してはいけない
+type SearchChargesOutput = {
+    charges: BillingCharge[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+// 返り値の型が若干違うだけの型を定義してはいけない。
+type SearchChargeAndUserOutput = {
+    charge: BillingCharge;
+    user: User;
+}
 
 class BillingRepositoryPrisma implements BillingRepository {
     // inputの型を定義してはいけない
@@ -731,6 +774,40 @@ class BillingRepositoryPrisma implements BillingRepository {
         });
         // map関数を作成してはいけない
         return mapBillingChargeToDomain(charge);
+    }
+    // 入力にInput型を定義してはいけない
+    async searchCharges(input: SearchChargesInput): Promise<SearchChargesOutput> {
+        return await prisma.charge.findMany({
+            where: input,
+            skip: input.offset,
+            take: input.limit,
+            orderBy: input.orderBy,
+        });
+    }
+    // ほぼ中身が同じで役割が若干違うだけのメソッドを作成してはいけない。
+    async searchChargesWithPagination(input: SearchChargesInput): Promise<SearchChargesOutput> {
+        const where: Prisma.ChargeWhereInput = {};
+        if (input.userId) {
+            where.userId = input.userId;
+        }
+        if (input.tenantId) {
+            where.tenantId = input.tenantId;
+        }
+        return await prisma.charge.findMany({
+            where,
+            skip: input.offset,
+            take: input.limit,
+            orderBy: input.orderBy,
+        });
+    }
+    // 返り値の型が若干違うだけのメソッドを作成してはいけない。
+    async searchChargeAndUser(input: SearchChargesInput): Promise<SearchChargeAndUserOutput> {
+        return await prisma.charge.findFirst({
+            where: input,
+            include: {
+                user: true,
+            },
+        });
     }
 }
 ```
