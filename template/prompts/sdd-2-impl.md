@@ -16,6 +16,8 @@
 - コードスタイルは(https://raw.githubusercontent.com/noaqh-corp/dev/refs/heads/main/prompts/code-style-review.md)から取得しなさい。
 - 実装結果レポートテンプレートは(https://raw.githubusercontent.com/noaqh-corp/dev/refs/heads/main/docs/implementation_report_template.md)から取得しなさい。
 - 実装結果レポートは`spec/{feature_number}-{feature_name}/implementation_report.md`に保存しなさい。
+- 完了報告前には必ずテストを通しておくこと。
+- 完了報告前には実装セットをすべて完了させること。
 
 ## ディレクトリ構成
 - spec/{feature_number}-{feature_name}/
