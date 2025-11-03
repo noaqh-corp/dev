@@ -3,7 +3,6 @@ import { getBugCheckPrompt } from "./features/prompt/query/get-bug-check";
 import { getCodeStyleReviewPrompt } from "./features/prompt/query/get-code-style";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { getSddPrompt } from "./features/prompt/query/get-sdd";
 
 const server = new FastMCP({
   name: "noaqh-tools",
@@ -90,24 +89,6 @@ server.addTool({
         {
           type: "text",
           text: await getCodeStyleReviewPrompt(),
-        },
-      ],
-    };
-  },
-});
-
-server.addTool({
-  name: "get_sdd_prompt",
-  description: "SDD(Spec Driven Development)、仕様書駆動開発用のプロンプトを取得します。",
-  annotations: {
-    readOnlyHint: true,
-  },
-  async execute() {
-    return {
-      content: [
-        {
-          type: "text",
-          text: await getSddPrompt(),
         },
       ],
     };
