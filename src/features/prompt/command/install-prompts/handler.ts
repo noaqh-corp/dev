@@ -1,10 +1,10 @@
 import { copyFile, mkdir, readdir, rm, stat } from "fs/promises"
 import { existsSync } from "fs"
-import { basename, extname, join, resolve } from "path"
+import { basename, extname, join } from "path"
 import { homedir } from "os"
 import type { InstallPromptsOptions, InstallPromptsResult } from "../../types"
+import { getProjectRoot } from "../../../../util/project-root"
 
-const DEFAULT_SOURCE_DIR = resolve(process.cwd(), "prompts")
 const DEFAULT_CODEX_DEST_DIR = join(homedir(), ".codex", "prompts")
 const DEFAULT_CLAUDE_CODE_DEST_DIR = join(homedir(), ".claude", "commands")
 const DEFAULT_ROO_DEST_DIR = join(homedir(), ".roo", "commands")
@@ -18,7 +18,9 @@ export class PromptsSourceNotFoundError extends Error {
 }
 
 export async function installPrompts(options: InstallPromptsOptions = {}): Promise<InstallPromptsResult> {
-  const sourceDir = options.sourceDir ?? DEFAULT_SOURCE_DIR
+  const projectRoot = getProjectRoot()
+  const defaultSourceDir = join(projectRoot, "prompts")
+  const sourceDir = options.sourceDir ?? defaultSourceDir
   const destinationDir = options.destinationDir ?? DEFAULT_CODEX_DEST_DIR
   const prefix = options.filePrefix ?? DEFAULT_PREFIX
 
@@ -72,7 +74,9 @@ async function ensureSourceDirExists(sourceDir: string): Promise<void> {
 }
 
 export async function installClaudeCodePrompts(options: InstallPromptsOptions = {}): Promise<InstallPromptsResult> {
-  const sourceDir = options.sourceDir ?? DEFAULT_SOURCE_DIR
+  const projectRoot = getProjectRoot()
+  const defaultSourceDir = join(projectRoot, "prompts")
+  const sourceDir = options.sourceDir ?? defaultSourceDir
   const destinationDir = options.destinationDir ?? DEFAULT_CLAUDE_CODE_DEST_DIR
   const prefix = options.filePrefix ?? DEFAULT_PREFIX
 
@@ -115,7 +119,9 @@ export async function installClaudeCodePrompts(options: InstallPromptsOptions = 
 }
 
 export async function installRooPrompts(options: InstallPromptsOptions = {}): Promise<InstallPromptsResult> {
-  const sourceDir = options.sourceDir ?? DEFAULT_SOURCE_DIR
+  const projectRoot = getProjectRoot()
+  const defaultSourceDir = join(projectRoot, "prompts")
+  const sourceDir = options.sourceDir ?? defaultSourceDir
   const destinationDir = options.destinationDir ?? DEFAULT_ROO_DEST_DIR
   const prefix = options.filePrefix ?? DEFAULT_PREFIX
 

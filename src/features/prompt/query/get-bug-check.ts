@@ -1,5 +1,9 @@
 import { renderTemplate } from "../util"
+import { getProjectRoot } from "../../../util/project-root"
+import { join } from "path"
 
 export const getBugCheckPrompt = async () => {
-  return renderTemplate("template/prompts/bug-check.md", {})
+  const projectRoot = getProjectRoot()
+  const templatePath = join(projectRoot, "template", "prompts", "bug-check.md")
+  return renderTemplate(templatePath, {})
 }
