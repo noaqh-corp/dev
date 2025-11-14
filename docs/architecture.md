@@ -283,7 +283,7 @@ port の実体を置きます。DBなら Prisma、外部サービスなら各SDK
 ## 3\. ディレクトリ構造
 
 basedirはsrc/が存在すればsrc/、存在しなければ.がベースとなる。
-Sveltekitの場合はsrc/lib/server/がベースとなる。
+Sveltekitの場合はsrc/lib/server/がベースとなる。convex(https://www.convex.dev/)の場合はconvex/がベースとなる。
 
 ```
 .
@@ -342,6 +342,13 @@ Sveltekitの場合はsrc/lib/server/がベースとなる。
 │   ├── entrypoint/               # cron.ts / cli.ts 等
 │   │   ├── cron.ts
 │   │   └── cli.ts
+│   ├── (convexの仕様上、convex直下に置かないといけないファイル ex: auth.ts,schema.ts,etc....)
+│   ├── convex-operation/    # ConvexのMutationとQueryを置くディレクトリ | Convexを採用しているプロジェクトのみで作成する。
+│   │   ├── {domain}/
+│   │   │   ├── {mutation_or_query_name}.ts
+│   │   │   └── ...
+│   │   └── util/ # Convexのmutiation or queryでの共通処理をここに記述する。
+│   │       └── user.ts # userに関する共通処理をここに記述する。例えばuserの権限取得などなど。
 │   └── util/                  # サーバーユーティリティ（logger 等）
 │       └── logger.ts
 ```
@@ -355,6 +362,7 @@ Sveltekitの場合はsrc/lib/server/がベースとなる。
 | `shared/port` | 抽象インターフェース | Adapter 実装の契約を定義。 |
 | `shared/types` | 手書きの共有型 | ZenStack で賄えない複数箇所共有型のみ配置。 |
 | `adapter/*/mock/` | テスト用 Mock | 原則テスト専用。常用しない。 |
+| `convex-operation/` | Convexでは事前に定義された記法でMutationとQueryを定義する。ドメインごとにディレクトリを作成し、その中にMutationとQueryを定義する。ここにはビジネスロジックは絶対に含まない。flow,commmand,queryを呼び出すだけのPresenter層として利用する。 | Convexを採用しているプロジェクトのみで作成する。 |
 
 ---
 
@@ -366,6 +374,7 @@ Sveltekitの場合はsrc/lib/server/がベースとなる。
 | Features | `features/**` | adapter, shared | command/query を中心に実装。設計を先に書き下す。 |
 | Adapter | `adapter/**` | shared, providers | DB・外部サービス。Mock は同階層に配置。 |
 | Shared | `shared/**` | — | DI コンテナ・port・共通ロジック。 |
+| Convex-operation | `convex-operation/**` | features, flows, shared | Convexを採用しているプロジェクトのみで作成する。 |
 
 ---
 
