@@ -283,7 +283,7 @@ port の実体を置きます。DBなら Prisma、外部サービスなら各SDK
 ## 3\. ディレクトリ構造
 
 basedirはsrc/が存在すればsrc/、存在しなければ.がベースとなる。
-Sveltekitの場合はsrc/lib/server/がベースとなる。convex(https://www.convex.dev/)の場合はconvex/がベースとなる。
+Sveltekitの場合はsrc/lib/server/がベースとなる。convex(https://www.convex.dev/)の場合はconvex/がベースとなる。また、convexではディレクトリ名に-は使用できない。snake_caseで命名する。
 
 ```
 .
@@ -343,9 +343,9 @@ Sveltekitの場合はsrc/lib/server/がベースとなる。convex(https://www.c
 │   │   ├── cron.ts
 │   │   └── cli.ts
 │   ├── (convexの仕様上、convex直下に置かないといけないファイル ex: auth.ts,schema.ts,etc....)
-│   ├── convex-operation/    # ConvexのMutationとQueryを置くディレクトリ | Convexを採用しているプロジェクトのみで作成する。
+│   ├── convex_operation/    # ConvexのMutationとQueryを置くディレクトリ | Convexを採用しているプロジェクトのみで作成する。
 │   │   ├── {domain}/
-│   │   │   ├── {mutation_or_query_name}.ts
+│   │   │   ├── {mutation_or_query_name}.ts # ex: user/get_user.ts
 │   │   │   └── ...
 │   │   └── util/ # Convexのmutiation or queryでの共通処理をここに記述する。
 │   │       └── user.ts # userに関する共通処理をここに記述する。例えばuserの権限取得などなど。
