@@ -29,15 +29,15 @@ Noaqhプロジェクトの開発を支援するツール郡です。noaqh-devコ
 
 ## 初期設定
 
-codex mcp add noaqh-tool --url https://dev-tool.noaqh.com/mcp
-
-claude mcp add --transport http noaqh-tool https://dev-tool.noaqh.com/mcp
-
 ### コマンドのインストール
 noaqh-devコマンドをインストールします。
 
 ```bash
 bun install -g github:noaqh-corp/dev # ツール郡をインストールします。
+```
+### コマンドのアップデート
+コマンドをアップデートします。
+```bash
 ```
 
 ### コマンドの動作確認
