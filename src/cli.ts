@@ -24,9 +24,10 @@ Commands:
                       codexコマンドとclaudeコマンドが存在する場合のみ実行されます
   check-update        リモート main の進捗を確認し、先行コミット数を表示します
   --help              このヘルプを表示します
+  --version           バージョンを表示します
 `
 
-type CliCommand = "install-prompts" | "install-mcp" | "check-update" | "--help" | "-h"
+type CliCommand = "install-prompts" | "install-mcp" | "check-update" | "--help" | "-h" | "--version"
 
 export async function runCli(argv = process.argv): Promise<void> {
   const [, , ...rest] = argv
@@ -45,6 +46,10 @@ export async function runCli(argv = process.argv): Promise<void> {
       return
     case "check-update":
       await handleCheckUpdate()
+      return
+    case "--version":
+      const packageJson = await import("../package.json")
+      console.log(`noaqh-dev v${packageJson.version}`)
       return
     default:
       console.error(`未知のコマンドです: ${command}`)
