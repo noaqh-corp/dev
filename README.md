@@ -1,80 +1,74 @@
 # Noaqh開発ツール
+Noaqhプロジェクトの開発を支援するツール郡です。noaqh-devコマンドで利用できます。
 
-Noaqhプロジェクトの開発を支援するツール集です。開発ガイドライン、プロンプト集、およびMCPサーバーを提供します。
 
-## 概要
+## 提供する機能
+### プロンプト、MCPインストール
+開発フローに沿ったプロンプトを利用できるようにプロンプト、MCPをインストールします。対応するツールは以下の通りです。
 
-このリポジトリは以下を提供します:
+- Cursor
+- Claude Code
+- Codex
+- Roo Code 
 
-- **開発ドキュメント**: アーキテクチャ、実装ガイド、コードスタイルガイド
-- **プロンプト集**: バグチェック、コードレビュー、設計書作成用のプロンプト
-- **MCPサーバー**: 上記のドキュメントとプロンプトをMCP経由で利用可能
+## 提供するプロンプト
+開発フローに沿ったプロンプトを提供します。
 
-## ディレクトリ構成
+### 仕様書駆動開発-実装計画 prompts/sdd-1-plan.md
+ユーザーから要求を受け取り、実装計画書を作成します。実装計画書のテンプレートはdocs/plan_template.mdから取得します。
 
-```
-.
-├── docs/                    # 開発ドキュメント（外部公開）
-│   ├── app.md              # アプリ実装ガイド
-│   ├── architecture.md     # アーキテクチャドキュメント
-│   └── code-style.md       # コードスタイルガイド
-├── prompts/                # 生成されたプロンプト（外部公開）
-│   ├── bug-check.md        # バグチェック用プロンプト
-│   ├── code-style-review.md # コードレビュー用プロンプト
-│   └── sdd.md              # SDD作成用プロンプト
-├── template/prompts/       # プロンプトテンプレート
-├── src/
-│   ├── index.ts            # MCPサーバーのエントリーポイント
-│   └── features/prompt/    # プロンプト生成ロジック
-└── script/
-    ├── generate-prompt.ts  # プロンプト生成スクリプト
-    └── install-codex-prompts.ts # Codex CLI 用プロンプトインストーラ
-```
+### 仕様書駆動開発-実装 prompts/sdd-2-implementation.md
+実装計画書をもとに実装を行い、実装結果レポートを作成します。実装結果レポートのテンプレートはdocs/implementation_report_template.mdから取得します。
 
-## 外部公開コンテンツ
+### コミット prompt/commit.md
+ステージングエリアの変更をもとにコミットメッセージを作成します。
+ 
+### コードスタイルレビュー prompt/code-style-review.md
+コードスタイルドキュメントをもとにコードをレビューします。
 
-`docs/`と`prompts/`ディレクトリは外部に公開されており、誰でも閲覧可能です。これらのドキュメントとプロンプトは、Noaqhプロジェクトの開発標準として参照できます。
 
-## セットアップ
+## 初期設定
 
-```bash
-bun install
-```
+codex mcp add noaqh-tool --url https://dev-tool.noaqh.com/mcp
 
-## プロンプトの生成
+claude mcp add --transport http noaqh-tool https://dev-tool.noaqh.com/mcp
 
-テンプレートからプロンプトを生成します:
+### コマンドのインストール
+noaqh-devコマンドをインストールします。
 
 ```bash
-bun run generate-prompt
+bun install -g github:noaqh-corp/dev # ツール郡をインストールします。
 ```
 
-このコマンドは`template/prompts/`内のテンプレートを処理し、`prompts/`ディレクトリに最終的なプロンプトファイルを生成します。
-
-## Codexスラッシュコマンドとして利用
-
-Codex CLIでは`~/.codex/prompts/`内のMarkdownファイルを`/prompts:<ファイル名>`として呼び出せます。`prompts/`配下に生成されたファイルをCodexでも共有できるよう、インストールスクリプトを用意しています。
+### コマンドの動作確認
+コマンドを実行し動作を確認します。Unknown command:などのエラーが出力されず、正常に動作したらインストール成功です。
 
 ```bash
-# プロンプトをホームディレクトリにコピー
-noaqh-dev install
+noaqh-dev 
 ```
 
-このコマンドは各Markdownファイルを`~/.codex/prompts/n-*.md`としてコピーし、既存ファイルを上書きします。Codex CLIを再起動すると`/prompts:n-bug-check`のように入力してプロンプトを呼び出せます。生成済みのMarkdownを利用せず即座にコピーしたい場合は従来どおり`bun run install-prompts`も利用できます。
-
-## CLIコマンド
-
-開発ツールをCLIとして利用できます。ヘルプは次のコマンドで確認してください。
+### プロンプトインストール
+各ツールにプロンプトをインストールします。
 
 ```bash
-bun run src/cli.ts --help
-# または
-noaqh-dev --help
+noaqh-dev install-prompts
 ```
 
-- `noaqh-dev install`: `prompts/`内のMarkdownファイルを`~/.codex/prompts/`へコピーします（上書きあり）。
-- `noaqh-dev check-update`: 現在のリポジトリで`origin/main`が先行しているかをチェックし、先行している場合はコミット数と`git pull`手順を案内します。
+### MCPサーバーのインストール
+MCPサーバーをインストールします。
 
+```bash
+noaqh-dev install-mcp
+```
+
+Cursorは上記コマンドでインストール不可なので、以下のコマンドでインストールしてください。
+
+[Cursor MCPサーバーインストール](https://cursor.com/ja/install-mcp?name=noaqh-tools&config=eyJ1cmwiOiJodHRwczovL2Rldi10b29sLm5vYXFoLmNvbS9tY3AifQ%3D%3D)
+
+
+--- 
+
+# 開発者向け情報
 ## MCPサーバーとして利用
 
 ### 提供されるツール

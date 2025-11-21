@@ -5,5 +5,4 @@ import { getSddPrompt } from "./query/get-sdd"
 export const promptGenerators: Record<string, () => Promise<string>> = {
   "bug-check.md": getBugCheckPrompt,
   "code-style-review.md": getCodeStyleReviewPrompt,
-  "sdd.md": getSddPrompt,
 }

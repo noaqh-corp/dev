@@ -1,8 +1,5 @@
 import { FastMCP } from "fastmcp";
-import { getBugCheckPrompt } from "./features/prompt/query/get-bug-check";
-import { getCodeStyleReviewPrompt } from "./features/prompt/query/get-code-style";
 import { readFileSync } from "fs";
-import { resolve } from "path";
 
 const server = new FastMCP({
   name: "noaqh-tools",
@@ -10,58 +7,57 @@ const server = new FastMCP({
   instructions: "開発支援ツールを提供します。n:で始まるプロンプトを受け取った場合はnoaqh-toolsに設定されているツールを必ず使いなさい。",
 });
 
-const docResources = [
+const docs = [
   {
-    description: "アプリ実装の方針とベストプラクティスをまとめたガイドです。",
-    name: "アプリ実装ガイド",
+    name: "app",
+    description: "アプリ実装ガイドのドキュメントを取得します。",
     path: "docs/app.md",
-    uri: "resource://docs/app",
   },
   {
-    description: "システム全体のアーキテクチャに関するドキュメントです。",
-    name: "アーキテクチャドキュメント",
+    name: "architecture",
+    description: "アーキテクチャのドキュメントを取得します。",
     path: "docs/architecture.md",
-    uri: "resource://docs/architecture",
   },
   {
-    description: "コードスタイルやレビュー観点をまとめた資料です。",
-    name: "コードスタイルガイド",
+    name: "code-style",
+    description: "コードスタイルのドキュメントを取得します。",
     path: "docs/code-style.md",
-    uri: "resource://docs/code-style",
   },
   {
-    description: "実装結果レポートのテンプレートです。",
-    name: "実装結果レポートテンプレート",
+    name: "implementation-report-template",
+    description: "実装結果レポートのテンプレートを取得します。",
     path: "docs/implementation_report_template.md",
-    uri: "resource://docs/implementation-report-template",
   },
   {
-    description: "仕様策定時に利用する計画テンプレートです。",
-    name: "計画テンプレート",
+    name: "plan-template",
+    description: "計画テンプレートを取得します。",
     path: "docs/plan_template.md",
-    uri: "resource://docs/plan-template",
   },
 ] as const;
 
-for (const doc of docResources) {
-  const absolutePath = resolve(doc.path);
-
-  server.addResource({
-    description: doc.description,
-    mimeType: "text/markdown",
+for (const doc of docs) {
+  server.addTool({
     name: doc.name,
-    uri: doc.uri,
-    async load() {
+    description: doc.description,
+    annotations: {
+      readOnlyHint: true,
+    },
+    async execute() {
       return {
-        text: readFileSync(absolutePath, "utf-8"),
+        content: [
+          {
+            type: "text",
+            text: readFileSync(doc.path, "utf-8"),
+          },
+        ],
       };
     },
   });
 }
 
 server.addTool({
-  name: "get_bug_check_prompt",
-  description: "バグチェック用のプロンプトを取得します。",
+  name: "health",
+  description: "noaqh-toolsのMCPサーバーが接続できるか確認します。",
   annotations: {
     readOnlyHint: true,
   },
@@ -70,101 +66,12 @@ server.addTool({
       content: [
         {
           type: "text",
-          text: await getBugCheckPrompt(),
+          text: "MCPサーバーが接続できます。",
         },
       ],
     };
   },
 });
-
-server.addTool({
-  name: "get_code_style_review_prompt",
-  description: "コードスタイルをレビューするためのプロンプトを取得します。",
-  annotations: {
-    readOnlyHint: true,
-  },
-  async execute() {
-    return {
-      content: [
-        {
-          type: "text",
-          text: await getCodeStyleReviewPrompt(),
-        },
-      ],
-    };
-  },
-});
-
-server.addTool({
-  name: "get_app_doc",
-  description: "アプリ実装ガイドのドキュメントを取得します。",
-  annotations: {
-    readOnlyHint: true,
-  },
-  async execute() {
-    return {
-      content: [
-        {
-          type: "text",
-          text: readFileSync("docs/app.md", "utf-8"),
-        },
-      ],
-    };
-  },
-});
-
-server.addTool({
-  name: "get_architecture_doc",
-  description: "アーキテクチャのドキュメントを取得します。",
-  annotations: {
-    readOnlyHint: true,
-  },
-  async execute() {
-    return {
-      content: [
-        {
-          type: "text",
-          text: readFileSync("docs/architecture.md", "utf-8"),
-        },
-      ],
-    };
-  },
-});
-
-server.addTool({
-  name: "get_code_style_doc",
-  description: "コードスタイルのドキュメントを取得します。",
-  annotations: {
-    readOnlyHint: true,
-  },
-  async execute() {
-    return {
-      content: [
-        {
-          type: "text",
-          text: await getCodeStyleReviewPrompt(),
-        },
-      ],
-    };
-  },
-});
-server.addTool({
-  name: "get_implementation_report_template",
-  description: "実装結果レポートのテンプレートを取得します。",
-  annotations: {
-    readOnlyHint: true,
-  },
-  async execute() {
-    return {
-      content: [
-        {
-          type: "text",
-          text: readFileSync("docs/implementation_report_template.md", "utf-8"),
-        },
-      ],
-    };
-  },
-})
 
 await server.start({
   transportType: "httpStream",
