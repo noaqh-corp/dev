@@ -38,6 +38,7 @@ bun install -g github:noaqh-corp/dev # ツール郡をインストールしま�
 ### コマンドのアップデート
 コマンドをアップデートします。
 ```bash
+bun remove -g noaqh-dev && bun install -g github:noaqh-corp/dev
 ```
 
 ### コマンドの動作確認
