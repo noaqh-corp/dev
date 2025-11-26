@@ -23,11 +23,12 @@ Commands:
   install-mcp        CodexとClaude CodeにMCPサーバーを追加します
                       codexコマンドとclaudeコマンドが存在する場合のみ実行されます
   check-update        リモート main の進捗を確認し、先行コミット数を表示します
+  update              noaqh-devを最新版に更新し、プロンプトとMCPを再インストールします
   --help              このヘルプを表示します
   --version           バージョンを表示します
 `
 
-type CliCommand = "install-prompts" | "install-mcp" | "check-update" | "--help" | "-h" | "--version"
+type CliCommand = "install-prompts" | "install-mcp" | "check-update" | "update" | "--help" | "-h" | "--version"
 
 export async function runCli(argv = process.argv): Promise<void> {
   const [, , ...rest] = argv
@@ -46,6 +47,9 @@ export async function runCli(argv = process.argv): Promise<void> {
       return
     case "check-update":
       await handleCheckUpdate()
+      return
+    case "update":
+      await handleUpdate()
       return
     case "--version":
       const packageJson = await import("../package.json")
@@ -201,6 +205,60 @@ async function handleCheckUpdate(): Promise<void> {
   }
 }
 
+async function handleUpdate(): Promise<void> {
+  try {
+    console.log("=== noaqh-devの更新 ===")
+    
+    // 更新前のバージョンを取得
+    console.log("現在のバージョンを確認しています...")
+    const oldVersion = await getVersion()
+    if (oldVersion) {
+      console.log(`現在のバージョン: v${oldVersion}`)
+    } else {
+      console.log("現在のバージョンを取得できませんでした（初回インストールの可能性があります）")
+    }
+    
+    // 1. グローバルパッケージの削除
+    console.log("\nグローバルパッケージを削除しています...")
+    await runCommandWithOutput("bun", ["remove", "-g", "noaqh-dev"])
+    
+    // 2. 最新版のインストール
+    console.log("\n最新版をインストールしています...")
+    await runCommandWithOutput("bun", ["install", "-g", "github:noaqh-corp/dev"])
+    
+    // 更新後のバージョンを取得
+    console.log("\nインストールされたバージョンを確認しています...")
+    const newVersion = await getVersion()
+    if (newVersion) {
+      console.log(`新しいバージョン: v${newVersion}`)
+      if (oldVersion && oldVersion !== newVersion) {
+        console.log(`\n✅ 更新完了: v${oldVersion} → v${newVersion}`)
+      } else if (oldVersion === newVersion) {
+        console.log(`\n✅ 既に最新版です: v${newVersion}`)
+      }
+    } else {
+      console.log("バージョン情報を取得できませんでした")
+    }
+    
+    // 3. プロンプトのインストール
+    console.log("\nプロンプトをインストールしています...")
+    await runCommandWithOutput("bunx", ["noaqh-dev", "install-prompts"])
+    
+    // 4. MCPのインストール
+    console.log("\nMCPサーバーをインストールしています...")
+    await runCommandWithOutput("bunx", ["noaqh-dev", "install-mcp"])
+    
+    console.log("\n更新が完了しました。")
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error(`\nエラー: ${error.message}`)
+    } else {
+      console.error(`\nエラー: ${String(error)}`)
+    }
+    process.exitCode = 1
+  }
+}
+
 async function addMcpServers(): Promise<void> {
   console.log("\n=== MCPサーバーの追加 ===")
 
@@ -289,6 +347,54 @@ function runCommand(command: string, args: string[]): Promise<void> {
         ;(error as Error & { stdout?: string }).stdout = stdout
         ;(error as Error & { stderr?: string }).stderr = stderr
         reject(error)
+      }
+    })
+  })
+}
+
+function runCommandWithOutput(command: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: ["ignore", "inherit", "inherit"],
+    })
+
+    child.on("error", (error) => {
+      reject(error)
+    })
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve()
+      } else {
+        reject(new Error(`コマンド実行に失敗しました: ${command} ${args.join(" ")} (終了コード: ${code})`))
+      }
+    })
+  })
+}
+
+async function getVersion(): Promise<string | null> {
+  return new Promise<string | null>((resolve) => {
+    const child = spawn("bunx", ["noaqh-dev", "--version"], {
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+
+    let stdout = ""
+
+    child.stdout.setEncoding("utf-8")
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk
+    })
+
+    child.on("error", () => {
+      resolve(null)
+    })
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        const match = stdout.match(/noaqh-dev v(.+)/)
+        resolve(match && match[1] ? match[1] : null)
+      } else {
+        resolve(null)
       }
     })
   })

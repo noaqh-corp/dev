@@ -1,6 +1,6 @@
 {
   "name": "noaqh-dev",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "module": "index.ts",
   "type": "module",
   "private": true,
@@ -11,6 +11,7 @@
     "start": "bun run src/index.ts",
     "generate-prompt": "bun run script/generate-prompt.ts",
     "install-prompts": "bun run generate-prompt && bun run script/install-codex-prompts.ts",
+    "update": "bun remove -g noaqh-dev && bun install -g github:noaqh-corp/dev && bunx noaqh-dev install-prompts && bunx noaqh-dev install-mcp",
     "cli": "bun run src/cli.ts"
   },
   "devDependencies": {
