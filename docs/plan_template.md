@@ -3,7 +3,7 @@
 機能名: `[feature_number]-[feature_name]`  
 作成日: [日付]  
 モデル名: [モデル名 ex: Claude 4.5 Sonnet, GPT-5]  
-仕様書テンプレートバージョン: 1.0.1
+仕様書テンプレートバージョン: [バージョン{仕様書が更新されるたびに更新する} ex: 1.0.0]
 
 ## 概要
 <!-- 
@@ -90,7 +90,8 @@
 
 - `[TypeName]`: [型の説明と使用箇所]
 
-### 実装手順
+
+## 実装手順
 
 <!--
   要対応: 実装手順を定義してください。
@@ -101,26 +102,80 @@
   機能の実現に必要かつ、新規作成は編集が必要なcommand/query/flow/repository/serviceはすべて明記する。
 -->
 
-#### 実装セット [implementation_set_name]_1: Port/Adapter層 (必要な場合のみ)
+### 実装セット test_helper: テストヘルパー (必要な場合のみ)
+<!-- 
+
+  複数箇所で共通のテスト関連機能が必要な場合はここで実装します。このテストヘルパーにより複数箇所で重複するテスト関連機能を実装し、ソースコード量を削減します。
+  create~~~などのRepositoryに関わる処理は必ずモックリポジトリではなく、本番リポジトリで実装します。
+  initDatabase、removeAllDataFromDatabase以外は必ず、関数名にtestを含むこと。ex: createCoupon→createTestCoupon
+
+  以下のポリシーに従って実装してください。
+  - [base_dir]/test/helper.tsはドメインに強く紐づかないテスト関連機能を実装します。
+    - 上記に実装すべきテスト関連機能は以下です
+      - removeAllDataFromDatabase (すべてのレコードを削除することで、次のテストをクリーンな状態で実行できるようにします。)
+        - データベースからすべてのデータを削除します。afterAllで必ず呼び出す必要があります。
+      - initDatabase (seedデータの投入などを行い、データベースをあるべき状態にします。)
+        - beforeEachで必ず呼び出す必要があります。
+    - 各ドメインのあるべきデータを用意する機能はこちらに用意する。DBに直接書き込み、テスト用のデータを作成します。ドメインを特殊な状態にするフラグもつけることで作成方法が複雑なドメインの状態も簡単に再現できるようにします。既存のoperationで十分な場合は作成しない。複雑な処理が必要な場合のみ、関数を追加する。createTestUserWithProdoctのような複数ドメインをまたぐ関数は作成しない。
+      - 例: createTestCoupon(
+        discountType: string,
+        expired: boolean,
+      ): Promise<Coupon>
+      - 例: createTestUser(
+        name: string,
+        email: string,
+        isAdmin: boolean,
+        isBlocked: boolean,
+      ): Promise<User>
+
+  - [base_dir]/features/[domain]/test/helper.tsはドメインに強く紐づくテスト関連機能を実装します。絶対にドメイン内のテストに共通するもののみを実装します。他のドメインや、flows内から呼び出す必要があるものはこちらには実装しません。このファイルは無理に実装する必要は無く、必要な場合のみ実装します。
+
+
+ -->
+
+#### 対象ファイル:
+  - `test/helper.ts` (新規追加 or 修正)
+  - `test/helper.test.ts` (新規追加 or 修正)
+
+#### 実装関数
+  - [関数名]([引数]): [返り値] ex: `createTestCoupon(discountType: string, expired: boolean): Promise<Coupon>`
+    - 実装内容: [実装内容: ex: DBに直接書き込み、既存のoperationであるcreateCouponではexpiredな状態を再現するには複雑な処理が必要なため、一連の処理をこの関数で行うことでテストファイルの実装量を削減する。]
+    - テスト項目: 
+      - [テスト項目(itと対応するように記載)]
+  {...他にもあれば項目を追加してください。}
+
+    
+#### 手順:
+<!-- 
+手順は上から順に実行すればタスクが完了するようにする。
+例:
+  - [] [関数名]を実装(test/helper.ts)
+  - [] [関数名]のテストを作成(test/helper.test.ts)
+  - [] `bun run test test/helper.test.ts`を実行しテストが通ることを確認する。テストが通らない場合はエラー内容を確認し、エラー内容に沿って修正を行う。
+ -->
+  - [] [タスク1]
+  - [] [タスク2]
+
+### 実装セット [implementation_set_name]_1: Port/Adapter層 (必要な場合のみ)
 
 <!--
-  Repository/Serviceが必要な場合、最初に実装します。
-  Port(インターフェース)とAdapter(実装)、Mock実装を含めます。
+  Repository/Serviceが必要な場合、実装します。
+  Port(インターフェース)とAdapter(実装)を含めます。
+  RepositoryのMock実装は作成しません。ServiceのMock実装は必要に応じて作成します。
 -->
 
-##### Repository実装
+#### Repository実装
 
-- 対象ファイル:
+##### 対象ファイル:
   - `prisma/schema.zmodel` (新規追加)
   - `shared/port/[RepositoryName]Repository.ts` (新規追加)
   - `adapter/repository/[RepositoryName]Repository.ts` (新規追加)
-  - `adapter/repository/mock/[RepositoryName]Repository.ts` (新規追加)
-- 実装内容: [Repository実装の詳細]
-- メソッド:
+##### 実装内容: [Repository実装の詳細]
+##### メソッド:
   - [メソッド名]([引数]): [返り値] ex: `getUser(userId: string): User`
-- テスト項目:
+##### テスト項目:
   - [テスト項目(itと対応するように記載)]
-- 手順:
+##### 手順:
 <!-- 
 手順は上から順に実行すればタスクが完了するようにする。例:
 実行すべきコマンドは必ず記載する。
@@ -131,9 +186,6 @@
   - [] 本番実装を作成(adapter/repository/[RepositoryName]Repository.ts)
   - [] 本番実装のテストを作成(adapter/repository/[RepositoryName]Repository.test.ts)
   - [] `bun run test adapter/repository/[RepositoryName]Repository.test.ts`を実行しテストが通ることを確認する。テストが通らない場合はエラー内容を確認し、エラー内容に沿って修正を行う。
-  - [] Mock実装を作成(adapter/repository/mock/[RepositoryName]Repository.ts)
-  - [] Mock実装のテストを作成(adapter/repository/mock/[RepositoryName]Repository.test.ts)
-  - [] `bun run test adapter/repository/mock/[RepositoryName]Repository.test.ts`を実行しテストが通ることを確認
   - [] DIコンテナ(shared/container.ts)に登録
   - [] コードスタイルに沿っているか確認し、リファクタリングも合わせて行う。
   - [] リファクタリング後、再度テストを実行し、すべてのテストが通ることを確認
@@ -143,16 +195,19 @@
 
 ##### Service実装
 
-- 対象ファイル:
+##### 対象ファイル:
   - `shared/port/[ServiceName]Service.ts` (新規追加)
   - `adapter/service/[ServiceName]Service.ts` (新規追加)
   - `adapter/service/mock/[ServiceName]Service.ts` (新規追加)
-- メソッド:
+
+##### メソッド:
   - [メソッド名]([引数]): [返り値] ex: `sendMessage(channelId: string, message: string): Promise<{ status: 'success' | 'error', messageId: string }>`
-- テスト項目:
+
+##### テスト項目:
   - [テスト項目(itと対応するように記載)]
-- 実装内容: [Service実装の詳細]
-- 手順:
+
+##### 実装内容: [Service実装の詳細]
+##### 手順:
 <!-- 
 手順は上から順に実行すればタスクが完了するようにする。
 実行すべきコマンドは必ず記載する。
@@ -171,24 +226,27 @@
   - [タスク1]
   - [タスク2]
 
-#### 実装セット [implementation_set_name]_2: 型定義 (必要な場合のみ)
+### 実装セット [implementation_set_name]_2: 型定義 (必要な場合のみ)
 
 <!--
   新規型定義が必要な場合、features/<domain>/types.ts または shared/types/types.ts に定義します。
 -->
 
-- 対象ファイル:
+##### 対象ファイル
   - `features/[domain]/types.ts` (新規追加 or 修正)
   - `shared/types/types.ts` (新規追加 or 修正)
-- 実装内容: [型定義の詳細]
-- 手順:
+
+##### 実装内容
+[型定義の詳細]
+
+##### 手順:
 <!-- 
 手順は上から順に実行すればタスクが完了するようにする。例:
   - [] User型を定義(features/[domain]/types.ts)
  -->
   - [] [タスク1]
 
-#### 実装セット [implementation_set_name]_3: [実装セット名] 
+### 実装セット [implementation_set_name]_3: [実装セット名] 
 
 <!--
   features/<domain>/command, features/<domain>/query, flows のいずれかの実装セット
@@ -197,30 +255,30 @@
   - command, query, flow実装の場合は必ずエントリーポイントを明記する。
 -->
 
-- 対象ファイル: [対象ファイル(複数可能)]
+#### 対象ファイル: [対象ファイル(複数可能)]
   - エントリーポイント:
     - [新規追加 or 修正: エントリーポイント1]
-      - 関数: `[関数名]([引数]): [返り値]` ex: `getUserProfile(userId: string): User`
+      - 実装前関数定義: `[関数名]([引数]): [返り値]` ex: `getUserProfile(userId: string): User or ex: 新規実装のため存在しない`
+      - 実装後関数定義: `[関数名]([引数]): [返り値]` ex: `getUserProfile(userId: string, name: string): User`
       - 実装前状態: `[実装前状態]`
       - 実装後状態: `[実装後状態]`
       - 実装内容: `[実装内容]`
       - 使用するPort: `[RepositoryName]Repository`, `[ServiceName]Service` など
-- 対象テストファイル: 
-  - [対象テストファイル(複数可能)]
-    - テスト項目:
+#### 対象テスト: 
+  {テスト概要と、そのテストがなぜ必要なのかを明記してください。}
 
-    <!-- 
-  例:
-  - 会員登録済みのユーザーのみクーポンを取得できる
-  - 会員登録していないユーザーがクーポンを取得しようとした場合はエラーがthrowされる
-  - クーポンが存在しない場合はエラーがthrowされる
-  - すでに取得したクーポンを再度取得しようとした場合はエラーがthrowされる
-     -->
+##### [対象テストファイル名]
+必要な初期化処理: [必要な初期化処理]
+利用するテストヘルパー: 
+  - `[テストヘルパー名]` ex: `createTestCoupon`
+  {...他にもあれば項目を追加してください。}
 
-      - [会員登録済みのユーザーのみクーポンを取得できる]
+実装するテスト{itと対応するように記載}:
+  - [テスト項目(itと対応するように記載 ex: '会員登録済みのユーザーのみクーポンを取得できる' or '会員登録していないユーザーがクーポンを取得しようとした場合はエラーがthrowされる')]
+    - [期待する結果(expectと対応するように ex: `取得したクーポンがnullではない` or `取得しようとするとエラーがthrowされる`)]
+  {...他にもあれば項目を追加してください。}
 
-
-- 実装内容: [実装内容]
+#### 実装内容: [実装内容]
 <!-- 
 手順は上から順に実行すればタスクが完了するようにする。
 RED, GREEN, REFACOTRを意識して実装を行う。ファイル編集が必要な場合は必ずファイル名を例のように記載する。また、テストも項目名を必ず記載する。実行すべきコマンドも全て記載する。
@@ -243,21 +301,24 @@ RED, GREEN, REFACOTRを意識して実装を行う。ファイル編集が必要
   - [] [タスク3]
 
   
-#### 実装セット [implementation_set_name]_4: UI実装(必要な場合のみ)
+### 実装セット [implementation_set_name]_4: UI実装(必要な場合のみ)
 <!--
   要対応: UI実装が必要な場合、UI実装を定義してください。
   ここではUI実装を定義してください。UIテストは実装しない。したがってroute以下にテストファイルは作成しない。
 -->
 
-- 対象ファイル: [対象ファイル(複数可能)]
-  - 実装内容: [実装内容]
-  - 影響ページ
-  - 手順:
-    - [] UI実装(注意: テストは実装しない)
+#### 対象ファイル: [対象ファイル(複数可能)]
+
+##### 実装内容: [実装内容]
+{実装内容は必ず記載する。}
+
+##### 影響ページ
+  - [影響ページ1] : [どのように影響を受けるか]
+
+##### 手順:
+  - [] UI実装(注意: テストは実装しない)
     
-
-
-### 影響ページ
+## 影響ページ
 
 <!--
   要対応: 影響ページを定義してください。
@@ -266,13 +327,13 @@ RED, GREEN, REFACOTRを意識して実装を行う。ファイル編集が必要
 
 - [影響ページ1] : [どのように影響を受けるか]
 
-### 確認すべき項目
+## 確認すべき項目
 <!--
   要対応: ユーザーが動作確認を行うべき項目を定義してください。
   何を確認するべきか？は実装と同じくらい重要です。ユーザーが漏れなく動作確認し、問題があれば気がつけるように明記してください。
 -->
 
-#### ローカル確認できる項目
+### ローカル確認できる項目
 <!--
   要対応: ローカル確認できる項目を定義してください。
   - [項目1]: 
@@ -280,7 +341,7 @@ RED, GREEN, REFACOTRを意識して実装を行う。ファイル編集が必要
     確認すべき内容:{何を確認するべきか？　あるべき状態や、期待する結果を明記してください。}
     確認方法:{どのように確認するべきか？　ローカルでの確認方法を明記してください。}
 -->
-#### デプロイ環境でのみ確認できる項目
+### デプロイ環境でのみ確認できる項目
 <!--
   要対応: デプロイ環境でのみ確認できる項目を定義してください。
   - [項目1]: 
