@@ -1,0 +1,38 @@
+{
+  "commit.md": {
+    "name": "commit",
+    "description": "ステージングエリアの変更をもとに、最小の手間で必要十分かつ正確で最低限の情報を提供するgitコミットメッセージを作成します。"
+  },
+  "commit-confirm.md": {
+    "name": "commit-confirm",
+    "description": "gitコミットメッセージを作成し、ユーザーに確認を行います。ユーザーが承認した場合にコミットを実行します。"
+  },
+  "sdd-1-plan.md": {
+    "name": "sdd-1-plan",
+    "description": "ユーザーから要求を受け取り、実装計画書を作成します。実装計画書のテンプレートはdocs/plan_template.mdから取得します。"
+  },
+  "sdd-2-impl.md": {
+    "name": "sdd-2-impl",
+    "description": "実装計画書をもとに実装を行い、実装結果レポートを作成します。実装結果レポートのテンプレートはdocs/implementation_report_template.mdから取得します。"
+  },
+  "pr.md": {
+    "name": "pr",
+    "description": "現在のブランチで作成した変更をPRとして作成します。対応する実装計画書や実装レポートが存在する場合はPRに内容を貼り付けます。"
+  },
+  "code-style-review.md": {
+    "name": "code-style-review",
+    "description": "コードスタイルドキュメントをもとにコードをレビューします。コード編集はせず、報告のみを行います。"
+  },
+  "bug-check.md": {
+    "name": "bug-check",
+    "description": "予測できる不具合をチェックし、結果を報告します。コード編集はせず、報告のみを行います。"
+  },
+  "fix-pr-review-1-plan.md": {
+    "name": "fix-pr-review-1-plan",
+    "description": "PRのレビューをもとにPRの修正を行う計画を立てます。修正計画はfix/{pr-number}-{pr-title}/plan.mdに保存します。"
+  },
+  "doctor.md": {
+    "name": "doctor",
+    "description": "noaqh-devのdockerコマンドとして手順どおりに実行します。noaqh-toolsのMCPサーバーが接続できるか確認します。"
+  }
+}

@@ -1,6 +1,6 @@
 import process from "process"
 import { spawn } from "child_process"
-import { installPrompts, installClaudeCodePrompts, installRooPrompts, PromptsSourceNotFoundError } from "./features/prompt/command/install-prompts/handler"
+import { installPrompts, installClaudeCodePrompts, installRooPrompts, installClaudeSkillsPrompts, installCodexSkillsPrompts, PromptsSourceNotFoundError } from "./features/prompt/command/install-prompts/handler"
 import {
   checkForRemoteUpdate,
   GitFetchError,
@@ -18,8 +18,10 @@ Commands:
   install-prompts     prompts ディレクトリのMarkdownをインストールします
                       オプションなし: すべてのディレクトリにコピーします
                       --codex: ~/.codex/prompts にコピーします
+                      --codex-skills: ~/.codex/skills にSKILL.md形式でコピーします
                       --claude: ~/.claude/commands にコピーします
                       --roo: ~/.roo/commands にコピーします
+                      --claude-skills: ~/.claude/skills にSKILL.md形式でコピーします
   install-mcp        CodexとClaude CodeにMCPサーバーを追加します
                       codexコマンドとclaudeコマンドが存在する場合のみ実行されます
   check-update        リモート main の進捗を確認し、先行コミット数を表示します
@@ -73,11 +75,13 @@ async function handleInstall(args: string[]): Promise<void> {
 
     // オプション引数の解析
     const hasCodex = args.includes("--codex")
+    const hasCodexSkills = args.includes("--codex-skills")
     const hasClaude = args.includes("--claude")
     const hasRoo = args.includes("--roo")
+    const hasClaudeSkills = args.includes("--claude-skills")
 
     // オプションが指定されていない場合は全てにインストール
-    const installAll = !hasCodex && !hasClaude && !hasRoo
+    const installAll = !hasCodex && !hasCodexSkills && !hasClaude && !hasRoo && !hasClaudeSkills
 
     if (installAll || hasCodex) {
       console.log("=== Codex用プロンプトのインストール ===")
@@ -96,6 +100,27 @@ async function handleInstall(args: string[]): Promise<void> {
       if (codexResult.warnings.length > 0) {
         for (const warning of codexResult.warnings) {
           console.warn(`[Codex] ${warning}`)
+        }
+      }
+    }
+
+    if (installAll || hasCodexSkills) {
+      console.log("\n=== Codex Skills用プロンプトのインストール ===")
+      const codexSkillsResult = await installCodexSkillsPrompts()
+
+      for (const file of codexSkillsResult.overwritten) {
+        console.log(`[Codex Skills] 上書き: ${file}`)
+      }
+
+      for (const file of codexSkillsResult.copied) {
+        if (!codexSkillsResult.overwritten.includes(file)) {
+          console.log(`[Codex Skills] コピー作成: ${file}`)
+        }
+      }
+
+      if (codexSkillsResult.warnings.length > 0) {
+        for (const warning of codexSkillsResult.warnings) {
+          console.warn(`[Codex Skills] ${warning}`)
         }
       }
     }
@@ -142,13 +167,36 @@ async function handleInstall(args: string[]): Promise<void> {
       }
     }
 
+    if (installAll || hasClaudeSkills) {
+      console.log("\n=== Claude Skills用プロンプトのインストール ===")
+      const claudeSkillsResult = await installClaudeSkillsPrompts()
+
+      for (const file of claudeSkillsResult.overwritten) {
+        console.log(`[Claude Skills] 上書き: ${file}`)
+      }
+
+      for (const file of claudeSkillsResult.copied) {
+        if (!claudeSkillsResult.overwritten.includes(file)) {
+          console.log(`[Claude Skills] コピー作成: ${file}`)
+        }
+      }
+
+      if (claudeSkillsResult.warnings.length > 0) {
+        for (const warning of claudeSkillsResult.warnings) {
+          console.warn(`[Claude Skills] ${warning}`)
+        }
+      }
+    }
+
     if (installAll) {
       console.log("\nすべてのプロンプトのインストールが完了しました。")
     } else {
       const targets = []
       if (hasCodex) targets.push("Codex")
+      if (hasCodexSkills) targets.push("Codex Skills")
       if (hasClaude) targets.push("Claude Code")
       if (hasRoo) targets.push("Roo")
+      if (hasClaudeSkills) targets.push("Claude Skills")
       console.log(`\n${targets.join("、")}用プロンプトのインストールが完了しました。`)
     }
   } catch (error) {
