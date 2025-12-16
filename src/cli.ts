@@ -1,5 +1,7 @@
 import process from "process"
 import { spawn } from "child_process"
+import { dirname, join } from "path"
+import { fileURLToPath } from "url"
 import { installPrompts, installClaudeCodePrompts, installRooPrompts, installClaudeSkillsPrompts, installCodexSkillsPrompts, PromptsSourceNotFoundError } from "./features/prompt/command/install-prompts/handler"
 import {
   checkForRemoteUpdate,
@@ -8,6 +10,9 @@ import {
   GitRepositoryNotFoundError,
 } from "./features/git/check-update"
 import { generatePrompts } from "../script/generate-prompt"
+import { getDiffFiles, getDiffContent } from "./features/review/query/get-diff/handler"
+import { runBiomeLint } from "./features/review/command/run-biome-lint/handler"
+import { runClaudeReview } from "./features/review/command/run-claude-review/handler"
 
 const HELP_TEXT = `noaqh-dev CLI
 
@@ -26,11 +31,16 @@ Commands:
                       codexコマンドとclaudeコマンドが存在する場合のみ実行されます
   check-update        リモート main の進捗を確認し、先行コミット数を表示します
   update              noaqh-devを最新版に更新し、プロンプトとMCPを再インストールします
+  review              差分コードのbiome lintチェックとClaude Codeレビューを実行します
+                      オプションなし: ブランチ差分+未コミット分をレビュー
+                      --uncommitted: 未コミット分のみをレビュー
+                      --base <branch>: ベースブランチを指定（デフォルト: main）
+                      --all-files: プロジェクト全体のbiome lintを実行
   --help              このヘルプを表示します
   --version           バージョンを表示します
 `
 
-type CliCommand = "install-prompts" | "install-mcp" | "check-update" | "update" | "--help" | "-h" | "--version"
+type CliCommand = "install-prompts" | "install-mcp" | "check-update" | "update" | "review" | "--help" | "-h" | "--version"
 
 export async function runCli(argv = process.argv): Promise<void> {
   const [, , ...rest] = argv
@@ -52,6 +62,9 @@ export async function runCli(argv = process.argv): Promise<void> {
       return
     case "update":
       await handleUpdate()
+      return
+    case "review":
+      await handleReview(rest.slice(1))
       return
     case "--version":
       const packageJson = await import("../package.json")
@@ -478,6 +491,73 @@ async function isMcpInstalled(command: "codex" | "claude"): Promise<boolean> {
       }
     })
   })
+}
+
+export function getDevToolConfigPath(subpath: string): string {
+  // cli.tsの位置から相対的に解決: src/cli.ts -> config/{subpath}
+  const cliUrl = import.meta.url
+  const cliPath = fileURLToPath(cliUrl)
+  const cliDir = dirname(cliPath)
+  return join(cliDir, "..", "config", subpath)
+}
+
+async function handleReview(args: string[]): Promise<void> {
+  try {
+    // オプション解析
+    let uncommittedOnly = false
+    let base = "main"
+    let allFiles = false
+
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === "--uncommitted") {
+        uncommittedOnly = true
+      } else if (args[i] === "--base" && i + 1 < args.length) {
+        const nextArg = args[i + 1]
+        if (nextArg) {
+          base = nextArg
+          i++
+        }
+      } else if (args[i] === "--all-files") {
+        allFiles = true
+      }
+    }
+
+    // 差分ファイルと差分内容を取得
+    const diffFiles = await getDiffFiles(base, uncommittedOnly)
+    const diffContent = await getDiffContent(base, uncommittedOnly)
+
+    // 差分がない場合は終了
+    if (diffFiles.length === 0) {
+      console.log("差分がありません")
+      return
+    }
+
+    // biome lint実行
+    console.log("=== biome lint ===")
+    const biomeResult = await runBiomeLint(diffFiles, allFiles)
+    console.log(biomeResult.output)
+    if (!biomeResult.success) {
+      console.log(`\nエラー: ${biomeResult.errorCount}件、警告: ${biomeResult.warningCount}件`)
+    } else {
+      console.log("\nbiome lint: 問題なし")
+    }
+
+    // Claude Codeレビュー実行
+    console.log("\n=== Claude Codeレビュー ===")
+    const claudeResult = await runClaudeReview(diffContent)
+    if (claudeResult === null) {
+      console.log("claudeコマンドが見つかりませんでした。レビューをスキップします。")
+    } else {
+      console.log(claudeResult)
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error(error.message)
+    } else {
+      console.error(String(error))
+    }
+    process.exitCode = 1
+  }
 }
 
 if (import.meta.main) {
