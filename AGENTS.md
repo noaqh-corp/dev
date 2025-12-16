@@ -1,0 +1,1 @@
+- noaqh-dev コマンドのreviewルール追加を依頼された場合はhowto/review_rule.mdに従う。
