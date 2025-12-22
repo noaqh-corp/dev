@@ -247,6 +247,124 @@ function parsePrice(text: string): number {
 
 ---
 
+### [error-4] +server.tsと+page.server.tsではtry-catchを基本禁止
+
+**Bad:**
+```typescript
+// src/routes/api/listings/create/+server.ts
+export const POST: RequestHandler = async ({ request, locals }) => {
+  try {
+    const result = await ebayService.createListing(accessToken, {...});
+    return json({ success: true });
+  } catch (err) {
+    return error(500, 'Failed to create listing');
+  }
+}
+```
+
+**Good:**
+```typescript
+// src/routes/api/listings/create/+server.ts
+export const POST: RequestHandler = async ({ request, locals }) => {
+  const result = await ebayService.createListing(accessToken, {...});
+  return json({ success: true });
+  // エラー時はSvelteKitのエラーハンドリングに任せる
+}
+```
+
+**なぜそうするかの理由:**
++server.tsと+page.server.tsでは、意図的なエラーハンドリング以外のtry-catchは不要です。エラーをcatchして単に再スローするだけのtry-catchは無意味です。SvelteKitのエラーハンドリングに任せることで、コードが簡潔になります。
+
+---
+
+### [error-5] エラーメッセージで分岐するのではなくエラー型で分岐する
+
+**Bad:**
+```typescript
+function handleEbayError(error: Error): string {
+  if (error.message.includes('25002')) {
+    return 'Item Specificsエラーです';
+  }
+  if (error.message.includes('25005')) {
+    return 'カテゴリIDエラーです';
+  }
+  return 'エラーが発生しました';
+}
+```
+
+**Good:**
+```typescript
+type EbayErrorType =
+  | { type: 'INVALID_CATEGORY'; categoryId?: string }
+  | { type: 'MISSING_ITEM_SPECIFIC'; categoryId?: string; missingAspect?: string }
+  | { type: 'DUPLICATE_LISTING'; existingListingId?: string }
+  | { type: 'UNKNOWN'; error: EbayError };
+
+function classifyEbayError(error: EbayError): EbayErrorType {
+  if (error.errorId === 25005 && error.domain === 'API_CATALOG') {
+    return { type: 'INVALID_CATEGORY', categoryId: error.parameters?.[0]?.value };
+  }
+  // ...
+}
+
+// プレゼンテーション層でエラーメッセージを生成
+function createEbayErrorMessage(errorType: EbayErrorType): string {
+  switch (errorType.type) {
+    case 'INVALID_CATEGORY':
+      return `カテゴリIDが無効です: ${errorType.categoryId}`;
+    // ...
+  }
+}
+```
+
+**なぜそうするかの理由:**
+エラーメッセージの文字列で分岐すると、メッセージが変更されたときに動作しなくなる可能性があります。エラーID、domain、subdomain、parametersなどの構造化された情報でエラーを分類し、エラータイプとして扱うことで、より堅牢なエラーハンドリングが可能になります。
+
+---
+
+### [error-6] エラーメッセージ生成はプレゼンテーション層で行う
+
+**Bad:**
+```typescript
+// src/lib/server/adapter/service/ebayService.ts
+async function createListing(...): Promise<void> {
+  try {
+    // ...
+  } catch (error) {
+    const userFriendlyMessage = createUserFriendlyErrorMessage(error);
+    throw new Error(userFriendlyMessage);
+  }
+}
+```
+
+**Good:**
+```typescript
+// src/lib/server/adapter/service/ebayService.ts
+async function createListing(...): Promise<void> {
+  // エラータイプをthrow
+  const errorType = classifyEbayError(error);
+  throw new EbayErrorException(errorType, error);
+}
+
+// src/routes/api/listings/create/+server.ts（プレゼンテーション層）
+export const POST: RequestHandler = async ({ request, locals }) => {
+  try {
+    await ebayService.createListing(...);
+  } catch (err) {
+    if (err instanceof EbayErrorException) {
+      const errorMessage = createEbayErrorMessage(err.errorType);
+      return error(400, errorMessage);
+    }
+    throw err;
+  }
+}
+```
+
+**なぜそうするかの理由:**
+エラーメッセージの生成はプレゼンテーション層（+server.ts、+page.server.ts）の責務です。サービス層ではエラータイプをthrowし、プレゼンテーション層でユーザーフレンドリーなメッセージに変換することで、責務が明確になります。
+
+---
+
 ## テスト (Testing)
 
 ### [testing-1] Repositoryのモックは作成しない。
@@ -451,6 +569,81 @@ function createListing(id: string): void {
 
 ---
 
+### [simplicity-4] 過度なフォールバックを避ける
+
+**Bad:**
+```typescript
+// src/routes/listings/+page.server.ts
+const productName = domesticInventory?.productName || listing.title;
+const productImage = domesticInventory?.imageUrl || '/test.png';
+const sourceSite = domesticInventory?.supplierSite || 'unknown';
+const ebayStatus = statusMap[listing.status] || listing.status;
+```
+
+**Good:**
+```typescript
+// src/routes/listings/+page.server.ts
+if (!domesticInventory?.productName) {
+  throw new Error('productName is required');
+}
+const productName = domesticInventory.productName;
+
+if (!domesticInventory?.imageUrl) {
+  throw new Error('imageUrl is required');
+}
+const productImage = domesticInventory.imageUrl;
+```
+
+**なぜそうするかの理由:**
+過度なフォールバックは、データの整合性を損ない、デバッグを困難にします。データが作成できないならエラーになるべきです。データが作成できているなら、フォールバックは不要です。
+
+---
+
+### [simplicity-5] 早期returnを使用してネストを減らす
+
+**Bad:**
+```typescript
+async function syncEbayListings(userId: string): Promise<void> {
+  const account = await getEbayAccount(userId);
+  if (account) {
+    const accessToken = await refreshAccessTokenIfNeeded(account);
+    if (accessToken) {
+      const offers = await ebayService.getOffers(accessToken);
+      if (offers.length > 0) {
+        // 処理
+      }
+    }
+  }
+}
+```
+
+**Good:**
+```typescript
+async function syncEbayListings(userId: string): Promise<void> {
+  const account = await getEbayAccount(userId);
+  if (!account) {
+    return;
+  }
+
+  const accessToken = await refreshAccessTokenIfNeeded(account);
+  if (!accessToken) {
+    return;
+  }
+
+  const offers = await ebayService.getOffers(accessToken);
+  if (offers.length === 0) {
+    return;
+  }
+
+  // 処理
+}
+```
+
+**なぜそうするかの理由:**
+if文のネストが深くなると、コードの可読性が低下します。早期returnを使用することで、ネストを減らし、コードの可読性が向上します。if文のネストは2階層までに抑えるべきです。
+
+---
+
 ## 命名 (Naming)
 
 ### [naming-1] 意図が明確な変数名を使う
@@ -617,6 +810,124 @@ function parsePrice(text: string): number {
 
 ---
 
+### [repository-3] create、update、delete操作は必ずRepository経由で行う
+
+**Bad:**
+```typescript
+// src/routes/api/listings/[id]/status/+server.ts（update）
+export const PUT: RequestHandler = async ({ params, request, locals }) => {
+  const { status } = await request.json();
+  await prisma.ebayListing.update({
+    where: { id: params.id },
+    data: { status }
+  });
+}
+
+// src/routes/api/listings/create/+server.ts（create）
+export const POST: RequestHandler = async ({ request, locals }) => {
+  const { title, price } = await request.json();
+  await prisma.ebayListing.create({
+    data: { title, price, userId: session.user.id }
+  });
+}
+
+// src/routes/api/ebay/accounts/[id]/+server.ts（delete）
+export const DELETE: RequestHandler = async ({ params, locals }) => {
+  await prisma.account.delete({
+    where: { id: params.id }
+  });
+}
+```
+
+**Good:**
+```typescript
+// src/routes/api/listings/[id]/status/+server.ts（update）
+export const PUT: RequestHandler = async ({ params, request, locals }) => {
+  const { status } = await request.json();
+  const productRepository = Container.getProductRepository();
+  await productRepository.updateEbayListing(params.id, undefined, undefined, status);
+}
+
+// src/routes/api/listings/create/+server.ts（create）
+export const POST: RequestHandler = async ({ request, locals }) => {
+  const { title, price } = await request.json();
+  const productRepository = Container.getProductRepository();
+  await productRepository.createListingForEbayPosting(
+    session.user.id,
+    accountId,
+    title,
+    price
+  );
+}
+
+// src/routes/api/ebay/accounts/[id]/+server.ts（delete）
+export const DELETE: RequestHandler = async ({ params, locals }) => {
+  const accountRepository = Container.getAccountRepository();
+  await accountRepository.deleteAccount(params.id);
+}
+```
+
+**なぜそうするかの理由:**
+create、update、delete操作を直接prismaで行うと、データアクセスロジックが散在し、テストが困難になります。Repository経由で行うことで、データアクセスロジックが集約され、モックによるテストが容易になります。また、複雑なビジネスロジック（トランザクション処理など）をRepositoryに隠蔽できます。
+
+---
+
+### [repository-4] +server.tsと+page.server.tsではprismaに直接依存しない
+
+**Bad:**
+```typescript
+// src/routes/api/ebay/accounts/+server.ts
+import { prisma } from '$lib/server/prisma';
+
+export const GET: RequestHandler = async ({ locals }) => {
+  const accounts = await prisma.account.findMany({
+    where: { userId: session.user.id }
+  });
+}
+```
+
+**Good:**
+```typescript
+// src/routes/api/ebay/accounts/+server.ts
+import { Container } from '$lib/server/shared/container';
+
+export const GET: RequestHandler = async ({ locals }) => {
+  const accountRepository = Container.getAccountRepository();
+  const accounts = await accountRepository.listAccounts(session.user.id);
+}
+```
+
+**なぜそうするかの理由:**
++server.tsと+page.server.tsでprismaに直接依存すると、データアクセスロジックが散在し、テストが困難になります。Repository経由でアクセスすることで、データアクセスロジックが集約され、モックによるテストが容易になります。
+
+---
+
+### [repository-5] データ取得もRepository経由で行う
+
+**Bad:**
+```typescript
+// src/lib/server/flow/sync-ebay-listings/handler.ts
+async function syncEbayListings(userId: string): Promise<void> {
+  const account = await prisma.account.findFirst({
+    where: { userId, provider: 'ebay' }
+  });
+}
+```
+
+**Good:**
+```typescript
+// src/lib/server/flow/sync-ebay-listings/handler.ts
+async function syncEbayListings(userId: string): Promise<void> {
+  const accountRepository = Container.getAccountRepository();
+  const account = await accountRepository.getEbayAccount(userId);
+}
+```
+
+**なぜそうするかの理由:**
+データ取得もRepository経由で行うことで、データアクセスロジックが集約され、複雑なクエリロジックをRepositoryに隠蔽できます。また、モックによるテストが容易になります。
+
+---
+
 ## データベース設計 (Database Design)
 
 ### [database-1] 不要なカラムを削除する
@@ -705,6 +1016,62 @@ function createLock(userId: string): CommandLock {
 
 ---
 
+### [database-4] 開発サーバー起動時に毎回マイグレーションとシードを実行しない
+
+**Bad:**
+```bash
+# scripts/dev-server.sh
+echo "Database initialization..."
+bun run db:generate
+bun run db:deploy
+bun run db:seed
+```
+
+**Good:**
+```bash
+# scripts/dev-server.sh
+# データベースが初期化されているか確認
+if is_database_initialized; then
+	echo "Database is already initialized."
+	# マイグレーション状態を確認
+	if check_migration_status; then
+		echo "All migrations are up to date."
+	else
+		echo "Applying pending migrations..."
+		bun run db:deploy
+	fi
+else
+	echo "Database is not initialized. Running initial setup..."
+	bun run db:deploy
+	bun run db:seed
+fi
+```
+
+**なぜそうするかの理由:**
+開発サーバー起動のたびに`db:deploy`と`db:seed`を無条件で実行すると、既存のデータ（eBayアカウントや出品データなど）が失われる可能性があります。データベース初期化状態とマイグレーション状態を確認し、必要な場合のみ実行することで、既存データを保護できます。
+
+---
+
+### [database-5] ロールバック済みの古いマイグレーションを削除する
+
+**Bad:**
+```sql
+-- _prisma_migrationsテーブルにロールバック済みのマイグレーションが残っている
+SELECT migration_name, rolled_back_at FROM _prisma_migrations WHERE rolled_back_at IS NOT NULL;
+-- 複数のロールバック済みレコードが残っている
+```
+
+**Good:**
+```sql
+-- ロールバック済みのマイグレーションを削除
+DELETE FROM _prisma_migrations WHERE rolled_back_at IS NOT NULL;
+```
+
+**なぜそうするかの理由:**
+ロールバック済みのマイグレーションが`_prisma_migrations`テーブルに残っていると、マイグレーション履歴が複雑になり、管理が困難になります。ロールバック済みのレコードは不要なので、定期的に削除することで、マイグレーション履歴をクリーンに保つことができます。
+
+---
+
 ## フロントエンドとバックエンドの分離 (Frontend-Backend Separation)
 
 ### [separation-1] バックエンドでフロントエンドの都合を扱わない
@@ -750,6 +1117,37 @@ export async function submitHearingSheet(
 
 **なぜそうするかの理由:**
 `page1`や`page2`はフロントエンドの都合であり、バックエンドで扱うべきではありません。handler.tsの引数はフロントエンドの実装を意識すべきではなく、各処理に適切な形でデータを変換するのはプレゼンテーション層（APIや+page.server.ts）の役割です。
+
+---
+
+### [separation-2] ページ遷移を伴うデータ取得は+page.server.tsで行う
+
+**Bad:**
+```typescript
+// src/routes/listings/new/+page.svelte
+onMount(async () => {
+  const accountsResponse = await fetch('/api/ebay/accounts');
+  const accounts = await accountsResponse.json();
+  // ...
+});
+```
+
+**Good:**
+```typescript
+// src/routes/listings/new/+page.server.ts
+export const load: PageServerLoad = async (event) => {
+  const accountRepository = Container.getAccountRepository();
+  const accounts = await accountRepository.listAccounts(session.user.id);
+  return { accounts };
+}
+
+// src/routes/listings/new/+page.svelte
+let { data }: { data: PageData } = $props();
+let accounts = $state(data.accounts || []);
+```
+
+**なぜそうするかの理由:**
+ページ遷移を伴うデータ取得は+page.server.tsで行うことで、サーバーサイドでデータを取得でき、SEOにも有利です。また、クライアントサイドでのfetch呼び出しが減り、コードが簡潔になります。動的な取得が必要な場合（アカウント選択時など）のみAPIエンドポイントを使用します。
 
 ---
 
