@@ -7,10 +7,10 @@
 - テンプレート内のコメントは指示です。
 - `{}`で囲まれた部分は置き換えるべきテキストです。
 - 手順は必ず`update_plan`ツールを活用し、順に対応しなさい。
-- アーキテクチャは(https://raw.githubusercontent.com/noaqh-corp/dev/refs/heads/main/docs/architecture.md)から取得しなさい。
-- 実装計画書テンプレートは(https://raw.githubusercontent.com/noaqh-corp/dev/refs/heads/main/docs/plan_template.md)から取得しなさい。
-- コードスタイルは(https://raw.githubusercontent.com/noaqh-corp/dev/refs/heads/main/prompts/code-style-review.md)から取得しなさい。
-- レビューガイドラインは(https://raw.githubusercontent.com/noaqh-corp/dev/refs/heads/main/docs/review.md)から取得しなさい。
+- アーキテクチャは({{path("docs/architecture.md")}})から取得しなさい。
+- 実装計画書テンプレートは({{path("docs/plan_template.md")}})から取得しなさい。
+- コードスタイルは({{path("prompts/code-style-review.md")}})から取得しなさい。
+- レビューガイドラインは({{path("docs/review.md")}})から取得しなさい。
 - 実装計画書テンプレートは(spec/{feature_number}-{feature_name}/plan.md)に保存しなさい。
 - 実装計画書は手順の中で何度も更新されます。クオリティが下がる原因になるため無理にまとめて作業はしてはいけません。
 

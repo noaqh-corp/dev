@@ -10,7 +10,7 @@ import {
   GitRepositoryNotFoundError,
 } from "./features/git/check-update"
 import { generatePrompts } from "../script/generate-prompt"
-import { getDiffFiles, getDiffContent } from "./features/review/query/get-diff/handler"
+import { getDiffFiles, getDiffContent, detectDefaultBranch } from "./features/review/query/get-diff/handler"
 import { runBiomeLint } from "./features/review/command/run-biome-lint/handler"
 import { runClaudeReview } from "./features/review/command/run-claude-review/handler"
 
@@ -505,7 +505,7 @@ async function handleReview(args: string[]): Promise<void> {
   try {
     // オプション解析
     let uncommittedOnly = false
-    let base = "main"
+    let base: string | null = null
     let allFiles = false
 
     for (let i = 0; i < args.length; i++) {
@@ -522,9 +522,13 @@ async function handleReview(args: string[]): Promise<void> {
       }
     }
 
-    // 差分ファイルと差分内容を取得
+    // baseが指定されていない場合は自動検出
+    if (base === null) {
+      base = await detectDefaultBranch()
+    }
+
+    // 差分ファイルを取得
     const diffFiles = await getDiffFiles(base, uncommittedOnly)
-    const diffContent = await getDiffContent(base, uncommittedOnly)
 
     // 差分がない場合は終了
     if (diffFiles.length === 0) {
@@ -544,7 +548,7 @@ async function handleReview(args: string[]): Promise<void> {
 
     // Claude Codeレビュー実行
     console.log("\n=== Claude Codeレビュー ===")
-    const claudeResult = await runClaudeReview(diffContent)
+    const claudeResult = await runClaudeReview(base, uncommittedOnly)
     if (claudeResult === null) {
       console.log("claudeコマンドが見つかりませんでした。レビューをスキップします。")
     } else {

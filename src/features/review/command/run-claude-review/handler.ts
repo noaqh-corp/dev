@@ -5,28 +5,40 @@ import { getDevToolConfigPath } from "../../../../cli"
 
 async function commandExists(command: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const child = spawn(command, ["--version"], {
+    // whichコマンドを使用してコマンドの存在を確認
+    const child = spawn("which", [command], {
       stdio: ["ignore", "ignore", "ignore"],
+      shell: false,
     })
 
+    let resolved = false
+    const resolveOnce = (value: boolean) => {
+      if (!resolved) {
+        resolved = true
+        resolve(value)
+      }
+    }
+
     const timeout = setTimeout(() => {
-      child.kill()
-      resolve(false)
-    }, 1000)
+      if (!resolved) {
+        child.kill("SIGKILL")
+        resolveOnce(false)
+      }
+    }, 300)
 
     child.on("error", () => {
       clearTimeout(timeout)
-      resolve(false)
+      resolveOnce(false)
     })
 
     child.on("close", (code) => {
       clearTimeout(timeout)
-      resolve(code === 0)
+      resolveOnce(code === 0)
     })
   })
 }
 
-async function getReviewPrompt(diffContent: string): Promise<string> {
+async function getReviewPrompt(base: string, uncommittedOnly: boolean): Promise<string> {
   // まず現在の作業ディレクトリのconfig/review/prompt.mdを探す
   // 見つからない場合は、dev_toolのconfig/review/prompt.mdを使用
   let promptPath = join(process.cwd(), "config", "review", "prompt.md")
@@ -41,30 +53,42 @@ async function getReviewPrompt(diffContent: string): Promise<string> {
     promptContent = await readFile(promptPath, "utf-8")
   }
   
+  // gitコマンドを実行するように指示
+  let gitCommand: string
+  if (uncommittedOnly) {
+    // 未コミット分のみ: git diff + git diff --cached
+    gitCommand = `git diff && git diff --cached`
+  } else {
+    // ブランチ差分+未コミット分: git diff {base}...HEAD + git diff + git diff --cached
+    gitCommand = `git diff ${base}...HEAD && git diff && git diff --cached`
+  }
+  
   return `${promptContent}
 
-以下の差分コードをレビューしてください:
+以下のgitコマンドを実行して差分を取得し、その差分コードをレビューしてください:
 
+\`\`\`bash
+${gitCommand}
 \`\`\`
-${diffContent}
-\`\`\`
+
+このコマンドを実行して差分を確認してください。
 `
 }
 
-export async function runClaudeReview(diffContent: string): Promise<string | null> {
+export async function runClaudeReview(base: string, uncommittedOnly: boolean): Promise<string | null> {
   const exists = await commandExists("claude")
   if (!exists) {
     return null
   }
 
-  const prompt = await getReviewPrompt(diffContent)
+  const prompt = await getReviewPrompt(base, uncommittedOnly)
   
   return new Promise((resolve, reject) => {
     const child = spawn("claude", [
       "-p",
       prompt,
       "--allowedTools",
-      "Read,Grep,Glob",
+      "Read,Grep,Glob,Command",
     ], {
       stdio: ["ignore", "pipe", "pipe"],
     })
@@ -91,7 +115,13 @@ export async function runClaudeReview(diffContent: string): Promise<string | nul
       if (code === 0) {
         resolve(stdout)
       } else {
-        // claudeコマンドが失敗した場合もnullを返す（スキップ扱い）
+        // claudeコマンドが失敗した場合
+        // E2BIGエラーなど、差分が大きすぎる場合は警告を表示
+        if (stderr.includes("E2BIG") || stderr.includes("argument list too long")) {
+          console.error(`警告: 差分が大きすぎるため、Claude Codeレビューをスキップします。`)
+          console.error(`エラー: ${stderr.trim()}`)
+        }
+        // その他のエラーもnullを返す（スキップ扱い）
         resolve(null)
       }
     })

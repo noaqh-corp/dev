@@ -4,6 +4,7 @@ import { basename, extname, join } from "path"
 import { homedir } from "os"
 import type { InstallPromptsOptions, InstallPromptsResult } from "../../types"
 import { getProjectRoot } from "../../../../util/project-root"
+import { replacePathPlaceholders } from "../../util"
 
 const DEFAULT_CODEX_DEST_DIR = join(homedir(), ".codex", "prompts")
 const DEFAULT_CODEX_SKILLS_DEST_DIR = join(homedir(), ".codex", "skills")
@@ -53,7 +54,7 @@ export async function installPrompts(options: InstallPromptsOptions = {}): Promi
       overwritten.push(destinationName)
     }
 
-    await copyFile(sourcePath, destinationPath)
+    await copyFileWithPlaceholderReplacement(sourcePath, destinationPath, projectRoot)
     copied.push(destinationName)
   }
 
@@ -73,6 +74,16 @@ async function ensureSourceDirExists(sourceDir: string): Promise<void> {
   } catch (error) {
     throw new PromptsSourceNotFoundError(sourceDir, { cause: error })
   }
+}
+
+async function copyFileWithPlaceholderReplacement(
+  sourcePath: string,
+  destinationPath: string,
+  projectRoot: string
+): Promise<void> {
+  const content = await readFile(sourcePath, "utf-8")
+  const replacedContent = replacePathPlaceholders(content, projectRoot)
+  await writeFile(destinationPath, replacedContent, "utf-8")
 }
 
 export async function installClaudeCodePrompts(options: InstallPromptsOptions = {}): Promise<InstallPromptsResult> {
@@ -109,7 +120,7 @@ export async function installClaudeCodePrompts(options: InstallPromptsOptions = 
       overwritten.push(destinationName)
     }
 
-    await copyFile(sourcePath, destinationPath)
+    await copyFileWithPlaceholderReplacement(sourcePath, destinationPath, projectRoot)
     copied.push(destinationName)
   }
 
@@ -154,7 +165,7 @@ export async function installRooPrompts(options: InstallPromptsOptions = {}): Pr
       overwritten.push(destinationName)
     }
 
-    await copyFile(sourcePath, destinationPath)
+    await copyFileWithPlaceholderReplacement(sourcePath, destinationPath, projectRoot)
     copied.push(destinationName)
   }
 
@@ -246,9 +257,10 @@ export async function installCodexSkillsPrompts(options: InstallPromptsOptions =
     let skillName: string
     let description: string
     
-    if (skillsConfig && skillsConfig[entry.name]) {
-      skillName = skillsConfig[entry.name].name
-      description = skillsConfig[entry.name].description
+    const skillMetadata = skillsConfig?.[entry.name]
+    if (skillMetadata) {
+      skillName = skillMetadata.name
+      description = skillMetadata.description
     } else {
       // フォールバック: ファイル名から生成
       skillName = generateSkillNameFromFilename(entry.name)
@@ -263,7 +275,10 @@ export async function installCodexSkillsPrompts(options: InstallPromptsOptions =
     const skillMdPath = join(skillDir, "SKILL.md")
 
     // プロンプトファイルの内容を読み込み
-    const promptContent = await readFile(sourcePath, "utf-8")
+    let promptContent = await readFile(sourcePath, "utf-8")
+
+    // プレースホルダーを変換
+    promptContent = replacePathPlaceholders(promptContent, projectRoot)
 
     // YAMLフロントマターを生成
     const yamlFrontMatter = generateYamlFrontMatter(skillName, description)
@@ -318,9 +333,10 @@ export async function installClaudeSkillsPrompts(options: InstallPromptsOptions 
     let skillName: string
     let description: string
     
-    if (skillsConfig && skillsConfig[entry.name]) {
-      skillName = skillsConfig[entry.name].name
-      description = skillsConfig[entry.name].description
+    const skillMetadata = skillsConfig?.[entry.name]
+    if (skillMetadata) {
+      skillName = skillMetadata.name
+      description = skillMetadata.description
     } else {
       // フォールバック: ファイル名から生成
       skillName = generateSkillNameFromFilename(entry.name)
@@ -335,7 +351,10 @@ export async function installClaudeSkillsPrompts(options: InstallPromptsOptions 
     const skillMdPath = join(skillDir, "SKILL.md")
 
     // プロンプトファイルの内容を読み込み
-    const promptContent = await readFile(sourcePath, "utf-8")
+    let promptContent = await readFile(sourcePath, "utf-8")
+
+    // プレースホルダーを変換
+    promptContent = replacePathPlaceholders(promptContent, projectRoot)
 
     // YAMLフロントマターを生成
     const yamlFrontMatter = generateYamlFrontMatter(skillName, description)

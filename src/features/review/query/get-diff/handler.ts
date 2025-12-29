@@ -1,5 +1,41 @@
 import { spawn } from "child_process"
 
+/**
+ * ブランチまたはリモート参照が存在するかチェック
+ */
+export async function branchExists(branch: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const child = spawn("git", ["rev-parse", "--verify", branch], {
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+
+    child.on("error", () => resolve(false))
+    child.on("close", (code) => resolve(code === 0))
+  })
+}
+
+/**
+ * デフォルトブランチ（mainまたはmaster）を自動検出
+ */
+export async function detectDefaultBranch(): Promise<string> {
+  // mainを優先、なければmaster
+  if (await branchExists("main")) {
+    return "main"
+  }
+  if (await branchExists("master")) {
+    return "master"
+  }
+  // どちらもない場合はorigin/mainまたはorigin/masterを試す
+  if (await branchExists("origin/main")) {
+    return "origin/main"
+  }
+  if (await branchExists("origin/master")) {
+    return "origin/master"
+  }
+  // デフォルトとしてmainを返す（エラーは後で発生する）
+  return "main"
+}
+
 export async function getDiffFiles(base: string, uncommittedOnly: boolean): Promise<string[]> {
   if (uncommittedOnly) {
     // 未コミット分のみ: git diff --name-only + git diff --cached --name-only

@@ -51,7 +51,8 @@
 -->
 
 <!--
-  要対応: diffの形式でエンティティの変更点を明記してください。
+  要対応: diffの形式でエンティティの変更点を明記してください
+
   例: 
   ```diff
   + model User {
@@ -60,6 +61,18 @@
   +   email String @unique
   +   password String
   + }
+
+  model Coupon {
+    id String @id @default(uuid())
+    name String
+    discountType String
+    discountAmount Number
+    expirationDate Date
+  + expirationDate Date
+    totalUsage Number
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+  }
   ```
 -->
 

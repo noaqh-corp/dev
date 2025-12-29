@@ -36,12 +36,12 @@ cursor-agent -p "{{ プロンプト}}" --resume "{セッションID}" --output-f
 
 #### 実装計画書作成プロンプト
 ```
-{https://raw.githubusercontent.com/noaqh-corp/dev/refs/heads/main/prompts/sdd-1-plan.md から取得したプロンプト} {ユーザーからの指示}
+{{{path("prompts/sdd-1-plan.md")}} から取得したプロンプト} {ユーザーからの指示}
 ```
 
 #### 実装プロンプト
 ```
-{https://raw.githubusercontent.com/noaqh-corp/dev/refs/heads/main/prompts/sdd-2-impl.md から取得したプロンプト} {実装計画書の相対パス}
+{{{path("prompts/sdd-2-impl.md")}} から取得したプロンプト} {実装計画書の相対パス}
 ```
 
 ### あなたがClaudeCodeの場合

@@ -6,9 +6,9 @@ PRのレビューをもとにPRの修正を行う計画を立てることが最�
 - テンプレート内のコメントは指示です。出力される文章は指示に従う必要がありますが、コメントは残してはいけません。
 - `{}`で囲まれた部分は置き換えるべきテキストです。
 - 手順は必ず`update_plan`ツールを活用し、順に対応しなさい。
-- アーキテクチャは(https://github.com/noaqh-corp/dev/blob/main/docs/architecture.md)から取得しなさい。
-- 実装計画書テンプレートは(https://raw.githubusercontent.com/noaqh-corp/dev/refs/heads/main/docs/plan_template.md)から取得しなさい。
-- コードスタイルは(https://raw.githubusercontent.com/noaqh-corp/dev/refs/heads/main/prompts/code-style-review.md)から取得しなさい。
+- アーキテクチャは({{path("docs/architecture.md")}})から取得しなさい。
+- 実装計画書テンプレートは({{path("docs/plan_template.md")}})から取得しなさい。
+- コードスタイルは({{path("prompts/code-style-review.md")}})から取得しなさい。
 - 実装計画書テンプレートは(fix/{pr-number}-{pr-title}/plan.md)に保存しなさい。
 - 実装計画書は手順の中で何度も更新されます。クオリティが下がる原因になるため無理にまとめて作業はしてはいけません。
 
