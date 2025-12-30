@@ -17,7 +17,7 @@
 ## ディレクトリ構成
 - spec/{feature_number}-{feature_name}/
     - plan.md # フェーズ1で作成する実装計画書
-    - ライブラリの使い方などの調査結果は`spec/{feature_number}-{feature_name}/attachments/{attachment_name}.md`に保存しなさい。
+    - implementation_report.md # フェーズ2で作成する実装結果レポート
 
 
 ## 手順
