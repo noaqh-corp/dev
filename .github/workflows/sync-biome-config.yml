@@ -24,6 +24,16 @@ jobs:
           repository: noaqh-corp/biome-config-noaqh
           token: ${{ secrets.NOAQH_PAT }}
           path: target
+          fetch-depth: 0
+
+      - name: Initialize repository if empty
+        working-directory: target
+        run: |
+          if [ ! -f .git/HEAD ] || ! git rev-parse --verify HEAD >/dev/null 2>&1; then
+            git config --local user.email "github-actions[bot]@users.noreply.github.com"
+            git config --local user.name "github-actions[bot]"
+            git checkout -b main || git checkout -b main
+          fi
 
       - name: Copy biome config to target
         run: |
@@ -34,7 +44,11 @@ jobs:
         working-directory: target
         run: |
           git add .
-          git diff --cached --exit-code . || echo "changed=true" >> $GITHUB_OUTPUT
+          if git diff --cached --exit-code . >/dev/null 2>&1; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Commit and push if changed
         if: steps.git-check.outputs.changed == 'true'
@@ -44,5 +58,5 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add .
           git commit -m "chore: sync biome config from dev repository"
-          git push
+          git push origin main || git push -u origin main
 
