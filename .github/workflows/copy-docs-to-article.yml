@@ -13,27 +13,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout source (dev)
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          path: source
+
+      - name: Checkout target (noaqh)
+        uses: actions/checkout@v4
+        with:
+          repository: noaqh-corp/noaqh
+          token: ${{ secrets.NOAQH_PAT }}
+          path: target
 
       - name: Copy docs to article/dev
         run: |
-          mkdir -p article/dev
-          cp -r docs/* article/dev/
+          mkdir -p target/article/dev
+          cp -r source/docs/* target/article/dev/
 
       - name: Check for changes
         id: git-check
+        working-directory: target
         run: |
           git add article/dev/
           git diff --cached --exit-code article/dev/ || echo "changed=true" >> $GITHUB_OUTPUT
 
       - name: Commit and push if changed
         if: steps.git-check.outputs.changed == 'true'
+        working-directory: target
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add article/dev/
-          git commit -m "chore: copy docs to article/dev"
+          git commit -m "chore: copy docs from dev repository"
           git push
