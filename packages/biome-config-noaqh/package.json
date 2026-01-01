@@ -1,0 +1,13 @@
+{
+  "name": "@noaqh/biome-config",
+  "version": "1.0.0",
+  "type": "module",
+  "exports": {
+    "./biome": "./biome.json"
+  },
+  "files": [
+    "biome.json",
+    "no-try-catch-in-server.grit"
+  ]
+}
+

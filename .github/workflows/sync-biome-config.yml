@@ -1,0 +1,48 @@
+name: Sync Biome Config
+
+on:
+  push:
+    paths:
+      - 'packages/biome-config-noaqh/**'
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source (dev)
+        uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Checkout target (biome-config-noaqh)
+        uses: actions/checkout@v4
+        with:
+          repository: noaqh-corp/biome-config-noaqh
+          token: ${{ secrets.NOAQH_PAT }}
+          path: target
+
+      - name: Copy biome config to target
+        run: |
+          cp -r source/packages/biome-config-noaqh/* target/
+
+      - name: Check for changes
+        id: git-check
+        working-directory: target
+        run: |
+          git add .
+          git diff --cached --exit-code . || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push if changed
+        if: steps.git-check.outputs.changed == 'true'
+        working-directory: target
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add .
+          git commit -m "chore: sync biome config from dev repository"
+          git push
+
