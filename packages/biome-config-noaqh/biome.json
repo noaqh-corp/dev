@@ -51,7 +51,7 @@
   "overrides": [
     {
       "includes": ["**/+server.ts", "**/+page.server.ts"],
-      "plugins": ["./grit/no-try-catch-in-server.grit"]
+      "plugins": ["@noaqh/biome-config/grit/no-try-catch-in-server.grit"]
     }
   ],
   "formatter": {
