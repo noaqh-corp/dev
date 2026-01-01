@@ -7,7 +7,7 @@
   },
   "files": [
     "biome.json",
-    "no-try-catch-in-server.grit"
+    "grit"
   ]
 }
 
