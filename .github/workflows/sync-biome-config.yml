@@ -19,20 +19,18 @@ jobs:
           path: source
 
       - name: Checkout target (biome-config-noaqh)
-        uses: actions/checkout@v4
-        with:
-          repository: noaqh-corp/biome-config-noaqh
-          token: ${{ secrets.NOAQH_PAT }}
-          path: target
-          fetch-depth: 0
-
-      - name: Initialize repository if empty
-        working-directory: target
         run: |
-          if [ ! -f .git/HEAD ] || ! git rev-parse --verify HEAD >/dev/null 2>&1; then
-            git config --local user.email "github-actions[bot]@users.noreply.github.com"
-            git config --local user.name "github-actions[bot]"
-            git checkout -b main || git checkout -b main
+          mkdir -p target
+          cd target
+          git init
+          git remote add origin https://${{ secrets.NOAQH_PAT }}@github.com/noaqh-corp/biome-config-noaqh.git || git remote set-url origin https://${{ secrets.NOAQH_PAT }}@github.com/noaqh-corp/biome-config-noaqh.git
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git fetch origin main 2>/dev/null || echo "Repository is empty or branch doesn't exist"
+          if git ls-remote --heads origin main | grep -q main; then
+            git checkout -b main origin/main || git checkout main
+          else
+            git checkout -b main
           fi
 
       - name: Copy biome config to target
