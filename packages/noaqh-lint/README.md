@@ -80,6 +80,21 @@ export const handleError = ({ error }) => {
 }
 ```
 
+## ignorePatterns
+
+推奨する除外パターン:
+
+```json
+{
+  "ignorePatterns": [
+    "node_modules",
+    ".svelte-kit",
+    "dist",
+    "build"
+  ]
+}
+```
+
 ## License
 
 MIT
