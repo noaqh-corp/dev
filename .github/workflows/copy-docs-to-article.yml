@@ -1,0 +1,37 @@
+name: Copy Docs to Article
+
+on:
+  push:
+    paths:
+      - 'docs/**'
+    branches:
+      - main
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copy docs to article/dev
+        run: |
+          mkdir -p article/dev
+          cp -r docs/* article/dev/
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          git diff --exit-code article/dev/ || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push if changed
+        if: steps.git-check.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add article/dev/
+          git commit -m "chore: copy docs to article/dev"
+          git push
