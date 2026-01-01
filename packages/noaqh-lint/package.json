@@ -1,0 +1,29 @@
+{
+  "name": "@noaqh/lint",
+  "version": "1.0.0",
+  "description": "Oxlint plugin and configuration for noaqh projects",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./config": "./.oxlintrc.json"
+  },
+  "files": [
+    "src",
+    ".oxlintrc.json"
+  ],
+  "keywords": [
+    "oxlint",
+    "eslint",
+    "linter",
+    "plugin"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/noaqh-corp/noaqh-lint.git"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "oxlint": ">=1.0.0"
+  }
+}

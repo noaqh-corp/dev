@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "plugins": ["import", "typescript"],
+  "rules": {
+    "no-unused-vars": "error",
+    "no-console": "warn",
+    "eqeqeq": "error",
+    "no-debugger": "error",
+    "typescript/no-explicit-any": "error"
+  },
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "build",
+    ".svelte-kit"
+  ]
+}

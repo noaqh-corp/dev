@@ -1,0 +1,208 @@
+name: Sync noaqh-lint
+
+on:
+  push:
+    paths:
+      - 'packages/noaqh-lint/**'
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source (dev)
+        uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Checkout target (noaqh-lint)
+        run: |
+          mkdir -p target
+          cd target
+          git init
+          git remote add origin https://${{ secrets.NOAQH_PAT }}@github.com/noaqh-corp/noaqh-lint.git || git remote set-url origin https://${{ secrets.NOAQH_PAT }}@github.com/noaqh-corp/noaqh-lint.git
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git fetch origin main 2>/dev/null || echo "Repository is empty or branch doesn't exist"
+          if git ls-remote --heads origin main | grep -q main; then
+            git checkout -b main origin/main || git checkout main
+          else
+            git checkout -b main
+          fi
+
+      - name: Copy noaqh-lint to target
+        run: |
+          cp -r source/packages/noaqh-lint/* target/
+          # Copy hidden files like .oxlintrc.json
+          cp source/packages/noaqh-lint/.* target/ 2>/dev/null || true
+
+      - name: Check for changes
+        id: git-check
+        working-directory: target
+        run: |
+          git add .
+          if git diff --cached --exit-code . >/dev/null 2>&1; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get current version from source
+        id: current-version
+        if: steps.git-check.outputs.changed == 'true'
+        run: |
+          if [ -f source/packages/noaqh-lint/package.json ]; then
+            CURRENT_VERSION=$(node -p "require('./source/packages/noaqh-lint/package.json').version")
+            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+            echo "Current version from source: $CURRENT_VERSION"
+          else
+            echo "version=0.0.0" >> $GITHUB_OUTPUT
+            echo "No package.json found in source, starting from 0.0.0"
+          fi
+
+      - name: Determine version bump type
+        id: version-bump
+        if: steps.git-check.outputs.changed == 'true'
+        working-directory: target
+        run: |
+          # Check what files changed
+          CHANGED_FILES=$(git diff --cached --name-only)
+
+          # Check if new rules added (MINOR bump)
+          if echo "$CHANGED_FILES" | grep -q "src/rules/"; then
+            NEW_RULES=$(git diff --cached --name-only | grep "^src/rules/" | grep -v "no-try-catch-in-server.js" || true)
+            if [ -n "$NEW_RULES" ]; then
+              echo "type=minor" >> $GITHUB_OUTPUT
+              echo "Version bump type: MINOR (new rules added)"
+              exit 0
+            fi
+          fi
+
+          # Check if package.json exports changed (MINOR bump)
+          if echo "$CHANGED_FILES" | grep -q "package.json"; then
+            if git diff --cached package.json | grep -q "exports"; then
+              echo "type=minor" >> $GITHUB_OUTPUT
+              echo "Version bump type: MINOR (package.json exports changed)"
+              exit 0
+            fi
+          fi
+
+          # Default to PATCH for other changes
+          echo "type=patch" >> $GITHUB_OUTPUT
+          echo "Version bump type: PATCH (configuration or documentation changes)"
+
+      - name: Calculate new version
+        id: new-version
+        if: steps.git-check.outputs.changed == 'true'
+        run: |
+          CURRENT_VERSION="${{ steps.current-version.outputs.version }}"
+          BUMP_TYPE="${{ steps.version-bump.outputs.type }}"
+
+          NEW_VERSION=$(node -e "
+            const version = '$CURRENT_VERSION';
+            const bumpType = '$BUMP_TYPE';
+            const [major, minor, patch] = version.split('.').map(Number);
+
+            let newMajor = major;
+            let newMinor = minor;
+            let newPatch = patch;
+
+            switch (bumpType) {
+              case 'major':
+                newMajor = major + 1;
+                newMinor = 0;
+                newPatch = 0;
+                break;
+              case 'minor':
+                newMajor = major;
+                newMinor = minor + 1;
+                newPatch = 0;
+                break;
+              case 'patch':
+                newMajor = major;
+                newMinor = minor;
+                newPatch = patch + 1;
+                break;
+            }
+
+            console.log(\`\${newMajor}.\${newMinor}.\${newPatch}\`);
+          ")
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+      - name: Update package.json version
+        if: steps.git-check.outputs.changed == 'true'
+        working-directory: target
+        run: |
+          NEW_VERSION="${{ steps.new-version.outputs.version }}"
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$NEW_VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "Updated package.json version to $NEW_VERSION"
+
+      - name: Commit and push if changed
+        if: steps.git-check.outputs.changed == 'true'
+        working-directory: target
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add .
+          git commit -m "chore: sync noaqh-lint from dev repository"
+          git push origin main || git push -u origin main
+
+      - name: Create git tag
+        if: steps.git-check.outputs.changed == 'true'
+        working-directory: target
+        run: |
+          NEW_VERSION="${{ steps.new-version.outputs.version }}"
+          TAG_NAME="v$NEW_VERSION"
+
+          # Check if tag already exists
+          if git ls-remote --tags origin "$TAG_NAME" | grep -q "$TAG_NAME"; then
+            echo "Tag $TAG_NAME already exists, skipping tag creation"
+          else
+            git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
+            git push origin "$TAG_NAME"
+            echo "Created and pushed tag: $TAG_NAME"
+          fi
+
+      - name: Create GitHub Release
+        if: steps.git-check.outputs.changed == 'true'
+        working-directory: target
+        env:
+          GITHUB_TOKEN: ${{ secrets.NOAQH_PAT }}
+        run: |
+          NEW_VERSION="${{ steps.new-version.outputs.version }}"
+          TAG_NAME="v$NEW_VERSION"
+          BUMP_TYPE="${{ steps.version-bump.outputs.type }}"
+
+          # Get changed files for release notes
+          CHANGED_FILES=$(git diff HEAD~1 HEAD --name-only 2>/dev/null || git diff --cached --name-only || echo "Initial release")
+
+          # Create release notes
+          cat > /tmp/release_notes.md << EOF
+          ## Changes
+
+          This release includes updates to the @noaqh/lint Oxlint plugin package.
+
+          **Version:** $NEW_VERSION
+          **Bump Type:** $BUMP_TYPE
+
+          ### Changed Files
+          \`\`\`
+          $CHANGED_FILES
+          \`\`\`
+          EOF
+
+          # Create release using GitHub CLI
+          gh release create "$TAG_NAME" \
+            --title "Release $TAG_NAME" \
+            --notes-file /tmp/release_notes.md \
+            --repo noaqh-corp/noaqh-lint || echo "Release may already exist or failed to create"

@@ -1,153 +1,134 @@
-# Biome設定パッケージ実装 - 引き継ぎドキュメント
+# Lint設定パッケージ実装 - 引き継ぎドキュメント
 
 作成日: 2026-01-01
+更新日: 2026-01-01
 
-## ユーザーの指示
+## 最終結論
 
-1. **セマンティックバージョニング + Gitタグの実装**
-   - `packages/biome-config-noaqh/package.json`のバージョンでリリースするように実装
-   - 変更内容に応じて自動的にバージョンを更新（PATCH/MINOR/MAJOR）
-   - GitタグとGitHub Releaseを自動作成
+**BiomeからOxlintへ移行完了**
 
-2. **gritディレクトリの作成**
-   - `packages/biome-config-noaqh/`に`grit/`ディレクトリを作成
-   - `no-try-catch-in-server.grit`を`grit/`ディレクトリに移動
+Biomeはnpmパッケージからのプラグイン配布をサポートしていないため、Oxlintに移行しました。
 
-3. **sample_todoリポジトリでの動作確認**
-   - `bun add github:noaqh-corp/biome-config-noaqh`でインストールできるか確認
-   - `biome.json`で`extends: ["@noaqh/biome-config/biome"]`として使用できるか確認
-   - ルートディレクトリから`add`できるか確認
+### 新しいリポジトリ
 
-4. **根本解決の指示**
-   - `overrides`を使わずに根本解決する
-   - `sample_todo`の`biome.json`で`overrides`を上書きする方法は避ける
+- **noaqh-lint**: https://github.com/noaqh-corp/noaqh-lint
+- Oxlintベースのlintプラグインパッケージ
 
-## 実施したこと
+### 使用方法
 
-### 1. セマンティックバージョニング + Gitタグの実装
+```bash
+bun add -D github:noaqh-corp/noaqh-lint oxlint
+```
 
-#### 実装内容
-- `.github/workflows/sync-biome-config.yml`に以下を追加：
-  - `Get current version from source`: ソースリポジトリの`packages/biome-config-noaqh/package.json`からバージョンを取得
-  - `Determine version bump type`: 変更内容に応じてバージョンアップタイプを決定
-    - `package.json`の`exports`の変更 → MINOR
-    - その他の変更（設定ファイル、ドキュメントなど） → PATCH
-  - `Calculate new version`: セマンティックバージョニングに従ってバージョンを計算
-  - `Update package.json version`: ターゲットリポジトリの`package.json`のバージョンを更新
-  - `Create git tag`: `v1.0.1`形式のGitタグを作成
-  - `Create GitHub Release`: リリースノートを含むGitHub Releaseを作成
+`.oxlintrc.json`:
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "jsPlugins": ["@noaqh/lint"],
+  "rules": {
+    "@noaqh/lint/no-try-catch-in-server": "error"
+  }
+}
+```
 
-#### 動作確認結果
-- ✅ ワークフローが正常に実行されることを確認
-- ✅ バージョンが自動的に更新されることを確認（1.0.0 → 1.0.1 → 1.1.0）
-- ✅ Gitタグが作成されることを確認（`v1.0.1`, `v1.1.0`）
-- ✅ GitHub Releaseが作成されることを確認
+---
 
-### 2. gritディレクトリの作成
+## Biomeの問題点（詳細調査結果）
 
-#### 実施内容
-- `packages/biome-config-noaqh/grit/`ディレクトリを作成
-- `no-try-catch-in-server.grit`を`grit/`ディレクトリに移動
-- `biome.json`の`plugins`パスを`./grit/no-try-catch-in-server.grit`に更新
-- `package.json`の`files`を`["biome.json", "grit"]`に更新
+### 調査で判明した事実
 
-#### 動作確認結果
-- ✅ ディレクトリ構造が正しく作成されることを確認
-- ✅ ファイルが正しく移動されることを確認
+1. **Biomeはプラグインのnpm配布を公式にサポートしていない**
+   - 意図的な設計決定（[Discussion #6265](https://github.com/biomejs/biome/discussions/6265)）
+   - ESLintのようなプラグインエコシステムの断片化を避けるため
+   - メンテナーの発言: "users can't distribute/share these plugins at the moment"
 
-### 3. sample_todoリポジトリでの動作確認
+2. **`plugins`と`extends`のパス解決の違い**
 
-#### 実施内容
-- `sample_todo`リポジトリで`bun add github:noaqh-corp/biome-config-noaqh`を実行
-- `biome.json`を作成し、`extends: ["@noaqh/biome-config/biome"]`を設定
-- Biomeの動作確認を実施
+   | 設定項目 | パッケージ名解決 | node_modules解決 |
+   |----------|-----------------|------------------|
+   | `extends` | ✅ サポート | ✅ サポート |
+   | `plugins` | ❌ 非サポート | ❌ 非サポート |
 
-#### 動作確認結果
-- ✅ パッケージのインストール: 正常にインストールされる
-- ✅ 設定ファイルの読み込み: `extends`が正しく認識される
-- ✅ ファイル構造: `biome.json`と`grit/no-try-catch-in-server.grit`が正しく配置される
-- ❌ プラグインパスの解決: エラーが発生
+3. **`extends`で読み込まれた設定内のプラグインパスはルートから解決される**
+   - [Discussion #6681](https://github.com/biomejs/biome/discussions/6681)で報告
+   - 設定ファイルの場所からではなく、ルートの設定ファイルの場所から解決
+   - PR #8365は`extends: "//"`のみを修正、npmパッケージからの拡張は対象外
 
-### 4. プラグインパス解決の問題への対応
+### 試した方法と結果
 
-#### 試した方法
-1. **相対パス**: `./grit/no-try-catch-in-server.grit`
-   - 結果: エラー（`Cannot read file`）
+1. **相対パス**: `./grit/no-try-catch-in-server.grit` → ❌ Cannot read file
+2. **パッケージexportsパス**: `@noaqh/biome-config/grit/...` → ❌ Cannot read file
+3. **node_modulesへの相対パス**: `./node_modules/@noaqh/biome-config/grit/...` → ❌ Cannot read file（extendsと組み合わせると失敗）
 
-2. **パッケージエクスポートパス**: `@noaqh/biome-config/grit/no-try-catch-in-server.grit`
-   - `package.json`の`exports`に`"./grit/no-try-catch-in-server.grit": "./grit/no-try-catch-in-server.grit"`を追加
-   - 結果: エラー（`Cannot read file`）
+### 結論
 
-## わかったこと
+**「overridesを使わずに根本解決する」は、現在のBiomeの設計では技術的に不可能**
 
-### 成功した点
+---
 
-1. **パッケージのインストール**
-   - `bun add github:noaqh-corp/biome-config-noaqh`で正常にインストールできる
-   - `package.json`に`@noaqh/biome-config`が追加される
-   - `node_modules/@noaqh/biome-config/`にファイルが正しく配置される
+## Oxlintへの移行
 
-2. **設定ファイルの読み込み**
-   - `biome.json`で`extends: ["@noaqh/biome-config/biome"]`が正しく認識される
-   - `@noaqh/biome-config/biome.json`の設定が読み込まれる
+### Oxlintを選んだ理由
 
-3. **セマンティックバージョニング**
-   - 変更内容に応じて自動的にバージョンが更新される
-   - GitタグとGitHub Releaseが自動作成される
-   - 依存しているリポジトリで特定のバージョンを指定できる（`github:noaqh-corp/biome-config-noaqh#v1.1.0`）
+| 項目 | Oxlint | Biome |
+|------|--------|-------|
+| npmプラグイン配布 | ✅ サポート | ❌ 非サポート |
+| パッケージ名でのプラグイン参照 | ✅ 可能 | ❌ 不可能 |
+| ESLint互換API | ✅ あり | ❌ GritQLのみ |
+| GitHub Stars | ~18k | ~17k |
+| 速度 | ESLintの50-100倍 | ESLintの15倍 |
 
-4. **ファイル構造**
-   - `biome.json`が存在する
-   - `grit/no-try-catch-in-server.grit`が存在する
-   - `package.json`の`exports`と`files`が正しく設定されている
+### 実装したもの
 
-### 問題点
+#### パッケージ構造
 
-1. **プラグインパスの解決エラー**
-   - `extends`で読み込まれた設定ファイル内の`plugins`パスが解決できない
-   - エラーメッセージ: `Cannot read file`
-   - 試した方法（相対パス、パッケージエクスポートパス）のいずれも解決できなかった
+```
+noaqh-lint/
+├── package.json
+├── README.md
+├── .oxlintrc.json          # ベース設定
+└── src/
+    ├── index.js            # プラグインエントリポイント
+    └── rules/
+        └── no-try-catch-in-server.js  # カスタムルール
+```
 
-2. **Biomeの`extends`機能の制限**
-   - `extends`で読み込まれた設定ファイル内のプラグインパスは、その設定ファイルの場所からの相対パスとして解決される必要がある
-   - しかし、実際には解決できていない可能性がある
+#### カスタムルール: `no-try-catch-in-server`
 
-## できなかったこと
+`+server.ts` / `+page.server.ts` でのtry-catch使用を禁止するルール。
+エラーは `hooks.server.ts` で一括ハンドリングすることを推奨。
 
-1. **プラグインパスの根本解決**
-   - `overrides`を使わずにプラグインパスを解決できなかった
-   - `sample_todo`の`biome.json`で`overrides`を上書きする方法は避けたかったが、現時点では解決策が見つかっていない
+### 動作確認結果
 
-2. **Biomeの`extends`機能の詳細調査**
-   - BiomeのドキュメントやGitHubリポジトリでの詳細な調査は実施していない
-   - `extends`で読み込まれた設定ファイル内のプラグインパスの解決方法が不明
+sample_todoで確認:
+```
+✅ bun add -D github:noaqh-corp/noaqh-lint oxlint → 正常にインストール
+✅ bunx oxlint . → プラグインが正常に動作
+✅ @noaqh/lint/no-try-catch-in-server → try-catchを検出
+```
 
-## 次のステップ（推奨）
-
-1. **Biomeのドキュメント確認**
-   - Biomeの公式ドキュメントで`extends`とプラグインパスの解決方法を確認
-   - GitHubリポジトリで既存のissueを確認
-
-2. **代替案の検討**
-   - プラグインなしで基本設定のみを使用（`overrides`セクションを削除）
-   - プラグインファイルを別の方法で配布（例: npmパッケージとして別途公開）
-
-3. **動作確認の継続**
-   - プラグインなしで基本設定が正常に動作することを確認
-   - 他のプロジェクトでも動作確認を実施
+---
 
 ## 関連ファイル
 
-- `.github/workflows/sync-biome-config.yml`: GitHub Actionsワークフロー
-- `packages/biome-config-noaqh/package.json`: パッケージ設定
-- `packages/biome-config-noaqh/biome.json`: Biome設定ファイル
-- `packages/biome-config-noaqh/grit/no-try-catch-in-server.grit`: GritQLプラグイン
-- `packages/biome-config-noaqh/README.md`: パッケージのREADME
+### 新しいリポジトリ（Oxlint）
+- https://github.com/noaqh-corp/noaqh-lint
+
+### 旧リポジトリ（Biome - 非推奨）
+- `packages/biome-config-noaqh/`
+- https://github.com/noaqh-corp/biome-config-noaqh
+
+### テストリポジトリ
+- `sample_todo`（`/Users/hal/dev/halst256/sample_todo`）
 
 ## 参考情報
 
-- Biome設定パッケージの実装計画: `spec/5-biome-config-package/plan.md`
-- 実装結果レポート: `spec/5-biome-config-package/implementation_report.md`
-- 別リポジトリ: `noaqh-corp/biome-config-noaqh`
-- テストリポジトリ: `sample_todo`（`/Users/hal/dev/halst256/sample_todo`）
+### Biome関連
+- [Discussion #6265: Biome plugins distribution](https://github.com/biomejs/biome/discussions/6265)
+- [Discussion #6681: plugins aren't resolved from config file](https://github.com/biomejs/biome/discussions/6681)
+- [PR #8365: fix extends "//" plugin paths](https://github.com/biomejs/biome/pull/8365)
 
+### Oxlint関連
+- [Oxlint公式ドキュメント](https://oxc.rs/docs/guide/usage/linter.html)
+- [JS Plugins](https://oxc.rs/docs/guide/usage/linter/js-plugins.html)
+- [Oxlint JS Plugins Preview](https://oxc.rs/blog/2025-10-09-oxlint-js-plugins.html)
