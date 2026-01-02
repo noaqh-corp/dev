@@ -1,97 +1,113 @@
 # @noaqh/lint
 
-noaqhプロジェクト用のOxlintプラグインと設定
+noaqhプロジェクト用のOxlint設定
 
 ## インストール
 
 ```bash
-bun add -D github:noaqh-corp/noaqh-lint oxlint
+bun add -D @noaqh/lint oxlint
 ```
 
-## 使用方法
-
-### 1. プラグインと設定を使用
+## 使用方法（最小設定）
 
 プロジェクトのルートに `.oxlintrc.json` を作成:
 
 ```json
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
-  "jsPlugins": ["@noaqh/lint"],
-  "rules": {
-    "@noaqh/lint/no-try-catch-in-server": "error"
-  }
+  "extends": ["./node_modules/@noaqh/lint/.oxlintrc.json"],
+  "ignorePatterns": ["node_modules", "dist", "build", ".svelte-kit"]
 }
 ```
 
-### 2. lintの実行
+これだけで以下が有効になります:
+
+- **plugins**: `import`, `typescript`, `promise`, `unicorn`
+- **categories**: `correctness`(error), `suspicious`(warn), `perf`(warn)
+- **rules**: `no-console`, `eqeqeq`, `no-debugger`, `prefer-const`, `typescript/no-explicit-any` など
+
+## lintの実行
 
 ```bash
 bunx oxlint .
 ```
 
-## ルール
+## 含まれる設定
 
-### `@noaqh/lint/no-try-catch-in-server`
+### Categories
 
-`+server.ts` / `+page.server.ts` では try-catch を使用しないでください。
-エラーは `hooks.server.ts` で一括ハンドリングしてください。
+| カテゴリ | レベル |
+|---------|--------|
+| correctness | error |
+| suspicious | warn |
+| perf | warn |
+| pedantic | off |
+| style | off |
+| restriction | off |
 
-#### 悪い例
+### 主要ルール
 
-```typescript
-// src/routes/api/+server.ts
-export async function GET() {
-  try {
-    const data = await fetchData();
-    return json(data);
-  } catch (e) {
-    return json({ error: e.message }, { status: 500 });
-  }
-}
-```
+| ルール | レベル |
+|--------|--------|
+| no-unused-vars | error |
+| no-console | warn |
+| eqeqeq | error |
+| no-debugger | error |
+| no-var | error |
+| prefer-const | error |
+| typescript/no-explicit-any | error |
+| typescript/no-non-null-assertion | warn |
+| import/no-cycle | error |
+| import/no-self-import | error |
+| promise/no-return-wrap | error |
 
-#### 良い例
+### 無効化されているルール
 
-```typescript
-// src/routes/api/+server.ts
-export async function GET() {
-  const data = await fetchData();
-  return json(data);
-}
+- `unicorn/no-null` - null 使用を許可
+- `unicorn/filename-case` - ファイル名規則を強制しない
 
-// src/hooks.server.ts
-export const handleError = ({ error }) => {
-  console.error(error);
-  return {
-    message: "Internal Server Error",
-  };
-};
-```
+## ルールの上書き
 
-## ベース設定
-
-ベース設定のみを使用する場合:
+プロジェクト固有のルールを追加・上書きできます:
 
 ```json
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
-  "extends": ["./node_modules/@noaqh/lint/.oxlintrc.json"]
+  "extends": ["./node_modules/@noaqh/lint/.oxlintrc.json"],
+  "ignorePatterns": ["node_modules", "dist"],
+  "rules": {
+    "no-console": "off",
+    "typescript/no-explicit-any": "warn"
+  }
 }
 ```
 
-## ignorePatterns
+## ignorePatterns について
 
-推奨する除外パターン:
+`ignorePatterns` は extends で継承されません。各プロジェクトで設定してください。
+
+推奨パターン:
 
 ```json
 {
-  "ignorePatterns": [
-    "node_modules",
-    ".svelte-kit",
-    "dist",
-    "build"
-  ]
+  "ignorePatterns": ["node_modules", "dist", "build", ".svelte-kit"]
+}
+```
+
+## カスタムルール（オプション）
+
+### `@noaqh/lint/no-try-catch-in-server`
+
+`+server.ts` / `+page.server.ts` では try-catch を使用せず、`hooks.server.ts` で一括ハンドリングすることを推奨するルール。
+
+```json
+{
+  "extends": ["./node_modules/@noaqh/lint/.oxlintrc.json"],
+  "ignorePatterns": ["node_modules", "dist"],
+  "jsPlugins": ["@noaqh/lint"],
+  "rules": {
+    "@noaqh/lint/no-try-catch-in-server": "error"
+  }
 }
 ```
 
