@@ -2,4 +2,8 @@
 - Convexを利用する際は https://docs.convex.dev/llms.txt を参考になさい。
 - 当て推量で作業はせず、原因を徹底的に調査してから作業を行いなさい。
 - コードを編集したあとは必ずlintを行い、エラーがないか確認し、エラーがあれば必ず修正しなさい。
+- prisma studioは使わない。DBの確認はMCPか、CLIで行う。
+- lintエラーを残さない。
+- npmではなく、bunを利用する。
+- npxではなく、bunxを利用する。
 - noaqh-dev コマンドのreviewルール追加を依頼された場合はhowto/review_rule.mdに従う。
