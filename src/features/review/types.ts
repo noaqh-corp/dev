@@ -1,4 +1,4 @@
-export type BiomeLintResult = {
+export type OxlintResult = {
   success: boolean
   output: string
   errorCount: number

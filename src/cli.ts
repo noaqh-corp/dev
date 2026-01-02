@@ -11,7 +11,7 @@ import {
 } from "./features/git/check-update"
 import { generatePrompts } from "../script/generate-prompt"
 import { getDiffFiles, getDiffContent, detectDefaultBranch } from "./features/review/query/get-diff/handler"
-import { runBiomeLint } from "./features/review/command/run-biome-lint/handler"
+import { runOxlint } from "./features/review/command/run-oxlint/handler"
 import { runClaudeReview } from "./features/review/command/run-claude-review/handler"
 
 const HELP_TEXT = `noaqh-dev CLI
@@ -31,11 +31,11 @@ Commands:
                       codexコマンドとclaudeコマンドが存在する場合のみ実行されます
   check-update        リモート main の進捗を確認し、先行コミット数を表示します
   update              noaqh-devを最新版に更新し、プロンプトとMCPを再インストールします
-  review              差分コードのbiome lintチェックとClaude Codeレビューを実行します
+  review              差分コードのoxlintチェックとClaude Codeレビューを実行します
                       オプションなし: ブランチ差分+未コミット分をレビュー
                       --uncommitted: 未コミット分のみをレビュー
                       --base <branch>: ベースブランチを指定（デフォルト: main）
-                      --all-files: プロジェクト全体のbiome lintを実行
+                      --all-files: プロジェクト全体のoxlintを実行
   --help              このヘルプを表示します
   --version           バージョンを表示します
 `
@@ -536,14 +536,14 @@ async function handleReview(args: string[]): Promise<void> {
       return
     }
 
-    // biome lint実行
-    console.log("=== biome lint ===")
-    const biomeResult = await runBiomeLint(diffFiles, allFiles)
-    console.log(biomeResult.output)
-    if (!biomeResult.success) {
-      console.log(`\nエラー: ${biomeResult.errorCount}件、警告: ${biomeResult.warningCount}件`)
+    // oxlint実行
+    console.log("=== oxlint ===")
+    const oxlintResult = await runOxlint(diffFiles, allFiles)
+    console.log(oxlintResult.output)
+    if (!oxlintResult.success) {
+      console.log(`\nエラー: ${oxlintResult.errorCount}件、警告: ${oxlintResult.warningCount}件`)
     } else {
-      console.log("\nbiome lint: 問題なし")
+      console.log("\noxlint: 問題なし")
     }
 
     // Claude Codeレビュー実行

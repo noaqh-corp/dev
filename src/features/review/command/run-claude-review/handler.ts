@@ -39,17 +39,16 @@ async function commandExists(command: string): Promise<boolean> {
 }
 
 async function getReviewPrompt(base: string, uncommittedOnly: boolean): Promise<string> {
-  // まず現在の作業ディレクトリのconfig/review/prompt.mdを探す
-  // 見つからない場合は、dev_toolのconfig/review/prompt.mdを使用
-  let promptPath = join(process.cwd(), "config", "review", "prompt.md")
+  // まず現在の作業ディレクトリのdocs/review.mdを探す
+  // 見つからない場合は、dev_toolのdocs/review.mdを使用
+  let promptPath = join(process.cwd(), "docs", "review.md")
   let promptContent: string
-  
+
   try {
     promptContent = await readFile(promptPath, "utf-8")
   } catch {
-    // 現在のディレクトリにない場合は、dev_toolのconfig/review/prompt.mdを使用
-    // cli.tsの位置から相対的に解決: src/cli.ts -> config/review/prompt.md
-    promptPath = getDevToolConfigPath("review/prompt.md")
+    // 現在のディレクトリにない場合は、dev_toolのdocs/review.mdを使用
+    promptPath = getDevToolConfigPath("../docs/review.md")
     promptContent = await readFile(promptPath, "utf-8")
   }
   

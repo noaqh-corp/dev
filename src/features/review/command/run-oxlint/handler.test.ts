@@ -1,8 +1,8 @@
 import { test, expect } from "bun:test"
-import { runBiomeLint } from "./handler"
+import { runOxlint } from "./handler"
 
-test("指定ファイルに対してbiome lintを実行できる", async () => {
-  const result = await runBiomeLint(["src/index.ts"], false)
+test("指定ファイルに対してoxlintを実行できる", async () => {
+  const result = await runOxlint(["src/index.ts"], false)
   expect(result).toHaveProperty("success")
   expect(result).toHaveProperty("output")
   expect(result).toHaveProperty("errorCount")
@@ -13,8 +13,8 @@ test("指定ファイルに対してbiome lintを実行できる", async () => {
   expect(typeof result.warningCount).toBe("number")
 })
 
-test("プロジェクト全体に対してbiome lintを実行できる", async () => {
-  const result = await runBiomeLint([], true)
+test("プロジェクト全体に対してoxlintを実行できる", async () => {
+  const result = await runOxlint([], true)
   expect(result).toHaveProperty("success")
   expect(result).toHaveProperty("output")
   expect(result).toHaveProperty("errorCount")
