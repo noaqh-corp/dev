@@ -1,11 +1,20 @@
-# プロジェクトのセットアップ方法
+以下は効率的に開発するためにするべきである事項である。これを参考にプロジェクトのセットアップを行いなさい。
 
-このドキュメントはバニラプロジェクトから開発を始めるときに必要な手順を記載しています。
+# プロジェクトのセットアップ
+--- 
+
+## ルール
+- 作業するのがバニラプロジェクトの場合は、メールアドレスログインができることを確認するだけの処理をsrc/routes/+page.svelteに実装する。ログインページ、サインアップページなども用意する。
+- デバッグログインが実装されていない場合は必ず実装する。
+- 対応したすべての機能に関わる機能が正しく動いているかをブラウザで必ず確認する。
 
 ---
 
 ## 0. AIエージェント設定ファイル
 CLAUDE.md,AGENTS.mdにAIエージェントへの指示が記載されているべき
+
+## 利用するライブラリ
+Sveltekitの場合は、Better Auth,Prisma、Tailwind CSS、Oxlint、Prettierを利用する。
 
 ## 1. 開発サーバーの起動・停止
 
@@ -155,6 +164,40 @@ sqlファイルを絶対に直接編集しない。
 https://github.com/noaqh-corp/noaqh-lint
 
 ### Formatはprettierを利用する
+
+.prettierrc
+```json
+
+{
+	"useTabs": true,
+	"singleQuote": false,
+	"trailingComma": "es5",
+	"printWidth": 100,
+	"plugins": ["prettier-plugin-svelte"],
+	"overrides": [
+		{
+			"files": "*.svelte",
+			"options": {
+				"parser": "svelte"
+			}
+		}
+	]
+}
+
+
+```
+
+.prettierignore
+```
+node_modules
+.svelte-kit
+build
+dist
+logs
+*.lock
+*.md
+
+```
 
 ---
 
