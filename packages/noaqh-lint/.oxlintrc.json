@@ -24,6 +24,7 @@
     "promise/no-return-wrap": "error",
     "unicorn/no-null": "off",
     "unicorn/filename-case": "off",
-    "@noaqh/lint/no-try-catch-in-server": "error"
+    "@noaqh/lint/no-try-catch-in-server": "error",
+    "no-await-in-loop": "off"
   }
 }
