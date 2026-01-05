@@ -3,6 +3,7 @@
  */
 
 import noTryCatchInServer from "./rules/no-try-catch-in-server.js";
+import noPrismaInFeatures from "./rules/no-prisma-in-features.js";
 
 const plugin = {
   meta: {
@@ -11,6 +12,7 @@ const plugin = {
   },
   rules: {
     "no-try-catch-in-server": noTryCatchInServer,
+    "no-prisma-in-features": noPrismaInFeatures,
   },
 };
 
