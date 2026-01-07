@@ -536,6 +536,24 @@ async function handleReview(args: string[]): Promise<void> {
       return
     }
 
+    // 実行モードの表示
+    if (uncommittedOnly) {
+      console.log("モード: 未コミット分のみ")
+    } else {
+      console.log("モード: ブランチ差分+未コミット分")
+    }
+    console.log(`ベースブランチ: ${base}`)
+    if (allFiles) {
+      console.log("全ファイルモード: 有効")
+    }
+
+    // 対象ファイルの表示
+    console.log(`対象ファイル数: ${diffFiles.length}件`)
+    for (const file of diffFiles) {
+      console.log(file)
+    }
+    console.log()
+
     // oxlint実行
     console.log("=== oxlint ===")
     const oxlintResult = await runOxlint(diffFiles, allFiles)
