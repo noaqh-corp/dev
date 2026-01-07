@@ -165,40 +165,6 @@ https://github.com/noaqh-corp/noaqh-lint
 
 ### Formatはprettierを利用する
 
-.prettierrc
-```json
-
-{
-	"useTabs": true,
-	"singleQuote": false,
-	"trailingComma": "es5",
-	"printWidth": 100,
-	"plugins": ["prettier-plugin-svelte"],
-	"overrides": [
-		{
-			"files": "*.svelte",
-			"options": {
-				"parser": "svelte"
-			}
-		}
-	]
-}
-
-
-```
-
-.prettierignore
-```
-node_modules
-.svelte-kit
-build
-dist
-logs
-*.lock
-*.md
-
-```
-
 ---
 
 ## 9. 環境変数
