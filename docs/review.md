@@ -43,6 +43,117 @@ Core、Policy、Portパターンは以前のアーキテクチャで使用され
 
 ---
 
+### [architecture-2] Repositoryはドメイン的なメソッド名を使わない
+
+**Bad:**
+```typescript
+// src/lib/server/adapter/repository/productRepository.prisma.ts
+export class ProductRepository {
+  async createEbayListingFromExisting(existingId: string): Promise<EbayListing> {
+    // ドメイン的すぎる命名
+  }
+
+  async createListingForEbayPosting(userId: string, ...): Promise<Listing> {
+    // ドメイン的すぎる命名
+  }
+}
+```
+
+**Good:**
+```typescript
+// src/lib/server/adapter/repository/productRepository.prisma.ts
+export class ProductRepository {
+  async createEbayListing(data: CreateEbayListingData): Promise<EbayListing> {
+    // シンプルなCRUD操作
+  }
+
+  async createListing(data: CreateListingData): Promise<Listing> {
+    // シンプルなCRUD操作
+  }
+}
+```
+
+**なぜそうするかの理由:**
+Repositoryはデータアクセス層であり、ドメインロジックを含めるべきではありません。`createEbayListingFromExisting`のような命名はドメイン的すぎるため、シンプルな`createEbayListing`のような命名にすべきです。ドメインロジックはFlow/Featuresで扱います。
+
+---
+
+### [architecture-3] Repositoryからサービスに依存しない
+
+**Bad:**
+```typescript
+// src/lib/server/adapter/repository/productRepository.prisma.ts
+import { ebayService } from '../service/ebayService';
+
+export class ProductRepository {
+  async createListingWithEbay(data: CreateListingData): Promise<Listing> {
+    const ebayResult = await ebayService.createOffer(...);
+    return await this.prisma.listing.create({
+      data: { ...data, ebayOfferId: ebayResult.offerId }
+    });
+  }
+}
+```
+
+**Good:**
+```typescript
+// src/lib/server/adapter/repository/productRepository.prisma.ts
+export class ProductRepository {
+  async createListing(data: CreateListingData): Promise<Listing> {
+    return await this.prisma.listing.create({ data });
+  }
+}
+
+// src/lib/server/flow/create-listing/handler.ts
+async function createListing(...): Promise<void> {
+  const ebayResult = await ebayService.createOffer(...);
+  await repository.createListing({ ...data, ebayOfferId: ebayResult.offerId });
+}
+```
+
+**なぜそうするかの理由:**
+Repositoryはデータアクセス層であり、外部サービスに依存すべきではありません。外部サービスとRepositoryをまとめて操作するのはFlow/Featuresの責務です。
+
+---
+
+### [architecture-4] ServiceからはRepository/Prismaにアクセスしない
+
+**Bad:**
+```typescript
+// src/lib/server/adapter/service/ebayService.ts
+import { prisma } from '$lib/server/prisma';
+
+export class EbayService {
+  async syncListings(userId: string): Promise<void> {
+    const offers = await this.fetchOffers(accessToken);
+    // ServiceからPrismaに直接アクセス
+    await prisma.ebayListing.createMany({ data: offers });
+  }
+}
+```
+
+**Good:**
+```typescript
+// src/lib/server/adapter/service/ebayService.ts
+export class EbayService {
+  async fetchOffers(accessToken: string): Promise<EbayOffer[]> {
+    // eBay APIからの取得と整形のみ
+    return await this.callEbayApi('/offers', accessToken);
+  }
+}
+
+// src/lib/server/flow/sync-ebay-listings/handler.ts
+async function syncEbayListings(userId: string): Promise<void> {
+  const offers = await ebayService.fetchOffers(accessToken);
+  await repository.createEbayListings(offers);
+}
+```
+
+**なぜそうするかの理由:**
+Serviceは外部API操作の責務を負い、fetchや整形を含む一連の操作を行います。Repository/Prismaへのアクセスは含めず、それらをまとめて操作するのはFlow/Featuresの役割です。
+
+---
+
 ## 型定義 (Type Definitions)
 
 ### [types-1] Input/Output型を作らない
@@ -161,6 +272,84 @@ import type { ConsultationCategory } from "@/lib/server/features/hearing-sheet/t
 
 ---
 
+### [types-5] 使っていない引数は受け取らない
+
+**Bad:**
+```typescript
+// src/lib/server/adapter/service/ebayService.ts
+async function getOffers(
+  accessToken: string,
+  _accountId: string,  // 使っていない
+  limit: number = 200  // デフォルト値付き
+): Promise<EbayOffer[]> {
+  return await this.callEbayApi('/offers', { accessToken, limit });
+}
+```
+
+**Good:**
+```typescript
+// src/lib/server/adapter/service/ebayService.ts
+async function getOffers(
+  accessToken: string,
+  limit: number
+): Promise<EbayOffer[]> {
+  return await this.callEbayApi('/offers', { accessToken, limit });
+}
+```
+
+**なぜそうするかの理由:**
+使っていない引数は混乱の原因になります。また、引数にデフォルト値を設定すると、呼び出し側でその値を意識しなくなり、バグの原因になります。呼び出し側で明示的に値を指定させることで、コードの意図が明確になります。
+
+---
+
+### [types-6] 排他的な項目は明確なバリデーションを入れる
+
+**Bad:**
+```typescript
+interface CreateListingInput {
+  ebayListing?: EbayListingData;
+  existingListingId?: string;
+}
+
+async function createListing(input: CreateListingInput): Promise<void> {
+  if (input.existingListingId) {
+    // 既存リスティングに紐づけ
+  } else if (input.ebayListing) {
+    // 新規登録
+  }
+  // どちらもない場合やどちらもある場合の処理が不明確
+}
+```
+
+**Good:**
+```typescript
+interface CreateListingInput {
+  ebayListing?: EbayListingData;
+  existingListingId?: string;
+}
+
+async function createListing(input: CreateListingInput): Promise<void> {
+  const hasEbayListing = !!input.ebayListing;
+  const hasExistingId = !!input.existingListingId;
+
+  if (hasEbayListing === hasExistingId) {
+    // どちらもnullか、どちらも存在する場合はエラー
+    throw new Error('Either ebayListing or existingListingId must be provided, but not both');
+  }
+
+  if (input.existingListingId) {
+    // 既存リスティングに紐づけ
+  } else {
+    // 新規登録
+  }
+}
+```
+
+**なぜそうするかの理由:**
+排他的な項目（どちらか一方のみ指定すべき項目）は、明確なバリデーションを入れることで、不正な状態を早期に検出できます。曖昧な状態を許容すると、予期しない動作の原因になります。
+
+---
+
 ## エラーハンドリング (Error Handling)
 
 ### [error-1] 不要なtry-catchを避ける
@@ -274,6 +463,27 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 }
 ```
 
+**`eslint-disable @noaqh/lint/no-try-catch-in-server` を使用してよい場合:**
+
+以下の条件を**すべて**満たす場合のみ使用可：
+
+1. **外部サービス連携でユーザー向けエラーハンドリングが必須な場合**
+   - OAuth認証フロー（リダイレクト先でエラーを適切に処理する必要がある）
+   - 外部決済サービス連携（ユーザーに決済失敗を明示する必要がある）
+
+2. **エラーを握りつぶさず、適切に処理している場合**
+   - catchブロック内でログ出力またはSentryへの送信を行っている
+   - ユーザーに適切なエラーメッセージを返している
+
+3. **500エラーとして落とすと不適切な場合**
+   - ユーザー操作の結果として発生するエラー（認証失敗など）
+   - リトライ可能なエラーをユーザーに伝える必要がある
+
+**使用してはいけない場合:**
+- 単にエラーを握りつぶすため
+- 「念のため」のtry-catch
+- 内部処理のエラー（DBエラー、バリデーションエラーなど）→ これらは500で落としてSentryでキャッチ
+
 **なぜそうするかの理由:**
 +server.tsと+page.server.tsでは、意図的なエラーハンドリング以外のtry-catchは不要です。エラーをcatchして単に再スローするだけのtry-catchは無意味です。SvelteKitのエラーハンドリングに任せることで、コードが簡潔になります。
 
@@ -364,6 +574,81 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 **なぜそうするかの理由:**
 エラーメッセージの生成はプレゼンテーション層（+server.ts、+page.server.ts）の責務です。サービス層ではエラータイプをthrowし、プレゼンテーション層でユーザーフレンドリーなメッセージに変換することで、責務が明確になります。
+
+---
+
+### [error-7] 存在しないケースは早期エラーで落とす
+
+**Bad:**
+```typescript
+async function syncEbayListings(listingId: string): Promise<void> {
+  const existingListing = await repository.findById(listingId);
+  if (!existingListing) {
+    // 存在しない場合は何もしない
+    return;
+  }
+  // 処理
+}
+
+async function getListingHistory(listingId: string): Promise<History[]> {
+  const listing = await repository.findById(listingId);
+  // listingがなくても空配列を返す
+  return listing?.history || [];
+}
+```
+
+**Good:**
+```typescript
+async function syncEbayListings(listingId: string): Promise<void> {
+  const existingListing = await repository.findById(listingId);
+  if (!existingListing) {
+    throw new Error(`Listing not found: ${listingId}`);
+  }
+  // 処理
+}
+
+async function getListingHistory(listingId: string): Promise<History[]> {
+  const listing = await repository.findById(listingId);
+  if (!listing) {
+    throw new Error(`Listing not found: ${listingId}`);
+  }
+  return listing.history;
+}
+```
+
+**なぜそうするかの理由:**
+「ありえない」状態を黙って処理すると、バグが隠れて問題が複雑化します。存在しないはずのデータがない場合は早期にエラーで落とすことで、問題の発見が容易になります。
+
+---
+
+### [error-8] 想定外の値はエラーにする
+
+**Bad:**
+```typescript
+function getListingFormat(format: string): string {
+  if (format === 'FIXED_PRICE') {
+    return 'fixed';
+  }
+  // FIXED_PRICE以外は全てauctionとして扱う
+  return 'auction';
+}
+```
+
+**Good:**
+```typescript
+function getListingFormat(format: string): string {
+  if (format === 'FIXED_PRICE') {
+    return 'fixed';
+  }
+  if (format === 'AUCTION') {
+    return 'auction';
+  }
+  throw new Error(`Unknown listing format: ${format}`);
+}
+```
+
+**なぜそうするかの理由:**
+想定外の値を暗黙的に処理すると、バグが発生しても気づきにくくなります。想定される値以外はエラーにすることで、問題を早期に検出できます。
 
 ---
 
@@ -1018,7 +1303,34 @@ function createLock(userId: string): CommandLock {
 
 ---
 
-### [database-4] 開発サーバー起動時に毎回マイグレーションとシードを実行しない
+### [database-4] DBスキーマでデフォルト値を使わない
+
+**Bad:**
+```prisma
+model EbayListing {
+  id                  String   @id @default(uuid())
+  status              String   @default("ACTIVE")
+  outOfStockHandling  String   @default("DETECT_ONLY")
+  price               Int      @default(0)
+}
+```
+
+**Good:**
+```prisma
+model EbayListing {
+  id                  String   @id @default(uuid())
+  status              String   // デフォルトなし、必須
+  outOfStockHandling  String   // デフォルトなし、必須
+  price               Int      // デフォルトなし、必須
+}
+```
+
+**なぜそうするかの理由:**
+DBでデフォルト値を設定すると、暗黙的に値が設定されるため、フロントエンドから明示的に値を受け取るべき項目が漏れても気づきにくくなります。必須項目は明示的に値を渡すようにし、デフォルト値に頼らないことで、データの整合性が向上します。
+
+---
+
+### [database-5] 開発サーバー起動時に毎回マイグレーションとシードを実行しない
 
 **Bad:**
 ```bash
